@@ -1,0 +1,18 @@
+Please implement screenshot capture to SD card for this ESP32 app.
+Requirements:
+1. Save current screen as BMP (800x480, RGB565) to SD card.
+2. Auto-create filenames like shot_0001.bmp, shot_0002.bmp.
+3. Add a trigger button in the Setup page: SAVE SCREENSHOT.
+4. Show on-screen feedback: Saved: /screens/shot_0001.bmp or Save failed.
+5. Keep capture non-blocking as much as possible (no visible UI freeze longer than needed).
+6. Create folder /screens on SD if missing.
+7. Keep existing app behavior unchanged.
+
+Also please:
+- Detect whether SD is available at boot and show status in Setup page.
+- Add serial logs for screenshot timing and file size.
+- Provide a short test checklist after implementation.
+
+If you want, you can also append:
+Use JPEG instead of BMP if feasible and stable on this hardware.
+Otherwise fallback to BMP automatically.
