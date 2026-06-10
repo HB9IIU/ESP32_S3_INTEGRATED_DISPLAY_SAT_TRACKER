@@ -20,7 +20,7 @@ parser.add_argument('--bpp',
 parser.add_argument('-r', '--range',
 					nargs='+',
 					metavar = 'start-end',
-					default=['0x20-0x7F,0xB0,0x2022'],
+					default=['0x20-0x7F,0xB0,0x2022,0x2013-0x2014,0x2190-0x2193'],
 					help='Ranges and/or characters to include. Default is 0x20-7F (ASCII). E.g. -r 0x20-0x7F, 0x200, 324')
 parser.add_argument('--symbols',
 					nargs='+',

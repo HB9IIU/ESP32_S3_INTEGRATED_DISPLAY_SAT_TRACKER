@@ -60,7 +60,6 @@ class Sgp4 {
     char opsmode;
     gravconsttype  whichconst;
     double ro[3];
-    double vo[3];
     double razel[3];
     double offset; //Min elevation for overpass prediction in radials
     double sunoffset;  //Min elevation sun for daylight in radials
@@ -75,6 +74,7 @@ class Sgp4 {
 	char line1[80];     //tle line 1
 	char line2[80];     //tle line 2
 
+    double vo[3];       // velocity vector in TEME frame (km/s)
     double revpday;  ///revolutions per day
     elsetrec satrec;
     double siteLat, siteLon, siteAlt, siteLatRad, siteLonRad;

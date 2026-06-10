@@ -70,6 +70,9 @@ Contributors:
 
 #endif
 
+// Set by the VSYNC_END ISR; read by lv_flush_cb to sync writes to the scan.
+volatile bool lgfx_vsync_flag = false;
+
 namespace lgfx
 {
  inline namespace v1
@@ -88,7 +91,6 @@ namespace lgfx
     _cfg = cfg;
   }
 
-
   IRAM_ATTR void Bus_RGB::lcd_default_isr_handler(void *args)
   {
     Bus_RGB *me = (Bus_RGB*)args;
@@ -101,6 +103,7 @@ namespace lgfx
       GDMA.channel[me->_dma_ch].out.conf0.out_rst = 0;
       GDMA.channel[me->_dma_ch].out.link.addr = (uintptr_t)&(me->_dmadesc_restart);
       GDMA.channel[me->_dma_ch].out.link.start = 1;
+      lgfx_vsync_flag = true;
 
     // bool need_yield = false;
         // call user registered callback

@@ -80,4 +80,21 @@ inline void clearLocation() {
     p.end();
 }
 
+// ── Selected satellite ────────────────────────────────────────────────────────
+
+inline uint32_t loadSelectedSat(uint32_t defaultId) {
+    Preferences p;
+    p.begin("satsel", true);
+    uint32_t id = p.getUInt("norad", defaultId);
+    p.end();
+    return id;
+}
+
+inline void saveSelectedSat(uint32_t id) {
+    Preferences p;
+    p.begin("satsel", false);
+    p.putUInt("norad", id);
+    p.end();
+}
+
 } // namespace NVSConfig

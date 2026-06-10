@@ -119,3 +119,39 @@ constexpr uint32_t SAT_LIST[] = {
 };
 
 constexpr int SAT_COUNT = sizeof(SAT_LIST) / sizeof(SAT_LIST[0]);
+
+// ── Satellite groups — used by the UI picker ──────────────────────────────────
+
+struct SatGroup {
+    const char*     label;
+    const uint32_t* ids;
+    int             count;
+};
+
+constexpr uint32_t _GRP_STATIONS[] = { 25544, 48274 };
+constexpr uint32_t _GRP_AMATEUR[]  = { 7530, 22825, 24278, 27607, 39444, 40967,
+                                        43017, 43770, 43803, 44909, 50466, 53109, 43700 };
+constexpr uint32_t _GRP_AMSAT[]    = { 43678, 43786, 46495, 59112, 60237, 61781, 67683 };
+constexpr uint32_t _GRP_NOAA[]     = { 25338, 28654, 33591, 43013, 54234 };
+constexpr uint32_t _GRP_WX_LEO[]   = { 37849, 38771, 43689, 65159, 40069, 44387,
+                                        57166, 59051, 41335, 43437, 32958, 37214,
+                                        39260, 43010, 49008, 56232, 57490, 65815 };
+constexpr uint32_t _GRP_WX_GEO[]   = { 41866, 43226, 51850, 60133, 28912, 38552,
+                                        40732, 54743, 40267, 41836, 41882, 41105,
+                                        47719, 58584 };
+constexpr uint32_t _GRP_CUBESAT[]  = { 35932, 39090, 39091, 40020, 40119, 39427,
+                                        39428, 40074, 43016, 46504, 46505, 46506,
+                                        46507, 66778 };
+
+#define _GCOUNT(a) (int)(sizeof(a)/sizeof(a[0]))
+
+constexpr SatGroup SAT_GROUPS[] = {
+    { "SPACE STATIONS", _GRP_STATIONS, _GCOUNT(_GRP_STATIONS) },
+    { "AMATEUR",        _GRP_AMATEUR,  _GCOUNT(_GRP_AMATEUR)  },
+    { "AMSAT",          _GRP_AMSAT,    _GCOUNT(_GRP_AMSAT)    },
+    { "NOAA",           _GRP_NOAA,     _GCOUNT(_GRP_NOAA)     },
+    { "WEATHER LEO",    _GRP_WX_LEO,   _GCOUNT(_GRP_WX_LEO)   },
+    { "WEATHER GEO",    _GRP_WX_GEO,   _GCOUNT(_GRP_WX_GEO)   },
+    { "CUBESATS",       _GRP_CUBESAT,  _GCOUNT(_GRP_CUBESAT)  },
+};
+constexpr int SAT_GROUP_COUNT = _GCOUNT(SAT_GROUPS);
