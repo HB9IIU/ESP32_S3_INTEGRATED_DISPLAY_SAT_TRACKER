@@ -6,6 +6,8 @@
 #include "screens_common.h"
 #include "sat_tracker.h"
 
+LV_FONT_DECLARE(JetBrainsMono_Regular_18);
+
 namespace ScreenPolar {
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -107,7 +109,7 @@ static void _buildProfile(const SatTracker::PassInfo& pass) {
     // Gold track (200 samples)
     lv_draw_line_dsc_t ld;
     lv_draw_line_dsc_init(&ld);
-    ld.color = lv_color_hex(C_GOLD); ld.width = 2;
+    ld.color = lv_color_hex(C_GOLD); ld.width = 1;
 
     int lastX = -1, lastY = -1;
     long dur = (long)(pass.stop - pass.start);
@@ -143,6 +145,7 @@ inline void build(lv_obj_t* panel) {
     const lv_font_t* F12 = &lv_font_montserrat_12;
     const lv_font_t* F14 = &lv_font_montserrat_14;
     const lv_font_t* F18 = &lv_font_montserrat_18;
+    const lv_font_t* FT  = &JetBrainsMono_Regular_18;
 
     // Column divider
     mk_panel(panel, INFO_W - 1, 0, 1, CONTENT_H, C_DIV);
@@ -151,15 +154,15 @@ inline void build(lv_obj_t* panel) {
     mk_label(panel, F12, C_SEC, 8,   8, "NEXT PASS");
 
     mk_label(panel, F12, C_DIM,    8,  34, "AOS");
-    _lbl_aos_t  = mk_label(panel, F18, C_GREEN, 8,  50);
+    _lbl_aos_t  = mk_label(panel, FT,  C_GREEN, 8,  50);
     _lbl_aos_az = mk_label(panel, F12, C_DIM,   8,  74);
 
     mk_label(panel, F12, C_DIM,    8,  98, "TCA");
-    _lbl_tca_t  = mk_label(panel, F18, C_GOLD,  8, 114);
+    _lbl_tca_t  = mk_label(panel, FT,  C_GOLD,  8, 114);
     _lbl_tca_el = mk_label(panel, F12, C_CYAN,  8, 138);
 
     mk_label(panel, F12, C_DIM,    8, 162, "LOS");
-    _lbl_los_t  = mk_label(panel, F18, C_RED,   8, 178);
+    _lbl_los_t  = mk_label(panel, FT,  C_RED,   8, 178);
     _lbl_los_az = mk_label(panel, F12, C_DIM,   8, 202);
 
     mk_label(panel, F12, C_DIM,    8, 228, "Duration");

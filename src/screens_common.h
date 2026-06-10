@@ -3,12 +3,12 @@
 #include <lvgl.h>
 
 // ── Shared layout constants ───────────────────────────────────────────────────
-#define HEADER_H    52    // persistent header height (y = 0..52)
-#define CONTENT_Y   52    // content panels start here
-#define CONTENT_H   378   // content panel height  (y = 52..430)
+#define HEADER_H    40    // persistent header height (y = 0..40)
+#define CONTENT_Y   40    // content panels start here
+#define CONTENT_H   400   // content panel height  (y = 40..440)
 #define CONTENT_W   800
-#define NAV_Y       430   // nav bar starts here
-#define NAV_H       50    // nav bar height        (y = 430..480)
+#define NAV_Y       440   // nav bar starts here
+#define NAV_H       40    // nav bar height        (y = 440..480)
 
 // ── Shared color palette ──────────────────────────────────────────────────────
 #define C_BG    0x0D1117

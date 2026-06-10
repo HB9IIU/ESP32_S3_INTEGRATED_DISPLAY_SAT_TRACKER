@@ -27,6 +27,7 @@ static void show_splash() {
 }
 
 void setup() {
+    uint32_t t_setup0 = millis();
     Serial.begin(115200);
     Serial.setTxTimeoutMs(0);
     delay(500);
@@ -41,15 +42,26 @@ void setup() {
         show_splash();
     }
 
+    uint32_t t_boot0 = millis();
     BootManager::run();
+    Serial.printf("[perf] BootManager::run()            %lu ms\n", millis() - t_boot0);
 
+    uint32_t t_lv0 = millis();
     lv_init();
     lvgl_setup();
     Serial.println("LVGL ready.");
+    Serial.printf("[perf] LVGL init + driver setup       %lu ms\n", millis() - t_lv0);
 
     uint32_t satId = NVSConfig::loadSelectedSat(DEFAULT_SAT_ID);
+    uint32_t t_sat0 = millis();
     SatTracker::begin(satId);
+    Serial.printf("[perf] SatTracker::begin()            %lu ms\n", millis() - t_sat0);
+
+    uint32_t t_ui0 = millis();
     ScreenManager::build(lv_scr_act());
+    Serial.printf("[perf] ScreenManager::build()         %lu ms\n", millis() - t_ui0);
+
+    Serial.printf("[perf] setup() total                  %lu ms\n", millis() - t_setup0);
     Serial.println("UI ready. Entering loop.");
 }
 

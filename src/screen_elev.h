@@ -6,6 +6,8 @@
 #include "screens_common.h"
 #include "sat_tracker.h"
 
+LV_FONT_DECLARE(JetBrainsMono_Regular_18);
+
 namespace ScreenElev {
 
 // ── Canvas geometry ───────────────────────────────────────────────────────────
@@ -193,13 +195,14 @@ inline void build(lv_obj_t* panel) {
     const lv_font_t* F12 = &lv_font_montserrat_12;
     const lv_font_t* F14 = &lv_font_montserrat_14;
     const lv_font_t* F18 = &lv_font_montserrat_18;
+    const lv_font_t* FT  = &JetBrainsMono_Regular_18;
 
     // ── Top info row ──────────────────────────────────────────────────────────
-    _lbl_aos = mk_label(panel, F18, C_VAL, CHX, 7);
+    _lbl_aos = mk_label(panel, FT,  C_VAL, CHX, 7);
     _lbl_max = mk_label(panel, F18, C_GREEN, 0, 7);
     lv_obj_set_width(_lbl_max, CONTENT_W);
     lv_obj_set_style_text_align(_lbl_max, LV_TEXT_ALIGN_CENTER, 0);
-    _lbl_los = mk_label(panel, F18, C_VAL, 0, 7);
+    _lbl_los = mk_label(panel, FT,  C_VAL, 0, 7);
     lv_obj_set_width(_lbl_los, CONTENT_W - CHX);
     lv_obj_set_style_text_align(_lbl_los, LV_TEXT_ALIGN_RIGHT, 0);
 

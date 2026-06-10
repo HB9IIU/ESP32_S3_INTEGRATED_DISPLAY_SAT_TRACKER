@@ -5,6 +5,8 @@
 #include "screens_common.h"
 #include "sat_tracker.h"
 
+LV_FONT_DECLARE(JetBrainsMono_Regular_18);
+
 namespace ScreenPasses {
 
 static lv_obj_t* lbl_row_num[SatTracker::MAX_PASSES];
@@ -21,6 +23,7 @@ static const int COLS[] = { 8, 46, 248, 358, 456, 556 };
 inline void build(lv_obj_t* panel) {
     const lv_font_t* F14 = &lv_font_montserrat_14;
     const lv_font_t* F18 = &lv_font_montserrat_18;
+    const lv_font_t* FT  = &JetBrainsMono_Regular_18;
 
     // Column header bar
     lv_obj_t* hdr = mk_panel(panel, 0, 0, CONTENT_W, HDR_H, C_HDR);
@@ -46,13 +49,13 @@ inline void build(lv_obj_t* panel) {
 
         lbl_row_aos[i] = lv_label_create(row);
         lv_label_set_text(lbl_row_aos[i], "--/-- --:--");
-        lv_obj_set_style_text_font(lbl_row_aos[i], F18, 0);
+        lv_obj_set_style_text_font(lbl_row_aos[i], FT, 0);
         lv_obj_set_style_text_color(lbl_row_aos[i], lv_color_hex(C_SEC), 0);
         lv_obj_align(lbl_row_aos[i], LV_ALIGN_LEFT_MID, COLS[1], 0);
 
         lbl_row_los[i] = lv_label_create(row);
         lv_label_set_text(lbl_row_los[i], "--:--");
-        lv_obj_set_style_text_font(lbl_row_los[i], F18, 0);
+        lv_obj_set_style_text_font(lbl_row_los[i], FT, 0);
         lv_obj_set_style_text_color(lbl_row_los[i], lv_color_hex(C_SEC), 0);
         lv_obj_align(lbl_row_los[i], LV_ALIGN_LEFT_MID, COLS[2], 0);
 

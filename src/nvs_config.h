@@ -1,5 +1,6 @@
 #pragma once
 #include <Preferences.h>
+#include <time.h>
 
 namespace NVSConfig {
 
@@ -9,6 +10,12 @@ struct WiFiCreds {
     char ssid[64];
     char password[64];
     bool valid;
+};
+
+struct WiFiHint {
+    uint8_t bssid[6];
+    int32_t channel;
+    bool    valid;
 };
 
 inline WiFiCreds loadWiFi() {
@@ -37,6 +44,26 @@ inline void clearWiFi() {
     Preferences p;
     p.begin("wifi", false);
     p.clear();
+    p.end();
+}
+
+inline WiFiHint loadWiFiHint() {
+    WiFiHint h{};
+    Preferences p;
+    p.begin("wifi", true);
+    h.channel = p.getInt("ch", 0);
+    size_t n = p.getBytes("bssid", h.bssid, sizeof(h.bssid));
+    h.valid = (n == sizeof(h.bssid) && h.channel > 0);
+    p.end();
+    return h;
+}
+
+inline void saveWiFiHint(const uint8_t bssid[6], int32_t channel) {
+    if (!bssid || channel <= 0) return;
+    Preferences p;
+    p.begin("wifi", false);
+    p.putInt("ch", channel);
+    p.putBytes("bssid", bssid, 6);
     p.end();
 }
 
@@ -76,6 +103,41 @@ inline void saveLocation(float lat, float lon, const char* tz) {
 inline void clearLocation() {
     Preferences p;
     p.begin("location", false);
+    p.clear();
+    p.end();
+}
+
+// ── Cached UTC offset (to avoid extra API call every boot) ──────────────────
+
+struct UtcOffsetCache {
+    int32_t offsetSec;
+    time_t  fetchedAt;
+    bool    valid;
+};
+
+inline UtcOffsetCache loadUtcOffsetCache() {
+    UtcOffsetCache c{};
+    Preferences p;
+    p.begin("tzcache", true);
+    c.valid    = p.getBool("saved", false);
+    c.offsetSec = p.getInt("offset", 0);
+    c.fetchedAt = (time_t)p.getULong64("fetched", 0);
+    p.end();
+    return c;
+}
+
+inline void saveUtcOffsetCache(int32_t offsetSec, time_t fetchedAt) {
+    Preferences p;
+    p.begin("tzcache", false);
+    p.putBool("saved", true);
+    p.putInt("offset", offsetSec);
+    p.putULong64("fetched", (uint64_t)fetchedAt);
+    p.end();
+}
+
+inline void clearUtcOffsetCache() {
+    Preferences p;
+    p.begin("tzcache", false);
     p.clear();
     p.end();
 }

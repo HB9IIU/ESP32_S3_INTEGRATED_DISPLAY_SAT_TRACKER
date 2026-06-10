@@ -5,6 +5,8 @@
 #include "screens_common.h"
 #include "sat_tracker.h"
 
+LV_FONT_DECLARE(JetBrainsMono_Regular_24);
+
 namespace ScreenTracker {
 
 static lv_obj_t *lbl_lat, *lbl_lon, *lbl_alt, *lbl_norad;
@@ -23,6 +25,7 @@ static const char* azCompass(double az) {
 inline void build(lv_obj_t* panel) {
     const lv_font_t* F14 = &lv_font_montserrat_14;
     const lv_font_t* F24 = &lv_font_montserrat_24;
+    const lv_font_t* FT  = &JetBrainsMono_Regular_24;
     const int LX = 20, RX = 420;
 
     // Vertical divider between the two columns
@@ -45,8 +48,8 @@ inline void build(lv_obj_t* panel) {
 
     // ── Right column: next pass ───────────────────────────────────────────────
     mk_label(panel, F14, C_SEC, RX,  10, "NEXT PASS");
-    lbl_aos       = mk_label(panel, F24, C_VAL,  RX,  30);
-    lbl_los       = mk_label(panel, F24, C_VAL,  RX,  64);
+    lbl_aos       = mk_label(panel, FT,  C_VAL,  RX,  30);
+    lbl_los       = mk_label(panel, FT,  C_VAL,  RX,  64);
     lbl_duration  = mk_label(panel, F24, C_VAL,  RX,  98);
     lbl_max_el    = mk_label(panel, F24, C_VAL,  RX, 132);
     lbl_pass_az   = mk_label(panel, F24, C_VAL,  RX, 166);

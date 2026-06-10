@@ -19,6 +19,16 @@ extern LGFX tft;
 #define BM_NTP2    "time.nist.gov"
 #define STATUS_Y   440
 #define STATUS_H    40
+#define FACTORY_RESET_WINDOW_MS 800
+#define FACTORY_RESET_HOLD_MS 3000
+#define WIFI_CONNECT_POLL_MS 200
+#define WIFI_SETTLE_MS 200
+#define WIFI_FAST_CONNECT_MS 3500
+#define WIFI_OK_STATUS_MS 800
+#define TZ_STATUS_MS 800
+#define NTP_STATUS_MS 800
+#define TLE_STATUS_MS 800
+#define BOOT_END_PAUSE_MS 0
 
 namespace BootManager {
 
@@ -35,8 +45,8 @@ static void checkFactoryReset() {
     tft.drawString("Touch & hold 3s to reset WiFi settings", 400, STATUS_Y + STATUS_H / 2);
     tft.setTextDatum(TL_DATUM);
 
-    const uint32_t WINDOW_MS = 3000;   // how long to watch for first touch
-    const uint32_t HOLD_MS   = 3000;   // how long touch must be held
+    const uint32_t WINDOW_MS = FACTORY_RESET_WINDOW_MS;   // watch for initial touch
+    const uint32_t HOLD_MS   = FACTORY_RESET_HOLD_MS;     // hold duration to confirm
 
     uint32_t windowStart = millis();
     uint32_t touchStart  = 0;
@@ -70,6 +80,7 @@ static void checkFactoryReset() {
                 tft.drawString("Clearing settings — rebooting...", 400, 270);
                 NVSConfig::clearWiFi();
                 NVSConfig::clearLocation();
+                NVSConfig::clearUtcOffsetCache();
                 Serial.println("[boot] NVS cleared.");
                 delay(2000);
                 ESP.restart();
@@ -218,7 +229,7 @@ static bool fetchGeoLocation() {
     char msg[80];
     snprintf(msg, sizeof(msg), "Location: %s, %s", city, country);
     drawStatus(msg, 0x00FF88);
-    delay(1200);
+    delay(TZ_STATUS_MS);
 
     Serial.println("[geo] ════════════════════════════════");
     return true;
@@ -265,7 +276,7 @@ static int32_t fetchUtcOffset(float lat, float lon) {
     char msg[64];
     snprintf(msg, sizeof(msg), "Timezone: %s  (UTC%+.0f h)", tzAbbr, offset / 3600.0f);
     drawStatus(msg, 0x00FF88);
-    delay(1000);
+    delay(TZ_STATUS_MS);
 
     Serial.println("[tz] ════════════════════════════════");
     return offset;
@@ -304,7 +315,7 @@ static bool syncTime(int32_t utcOffsetSec) {
     char msg[80];
     snprintf(msg, sizeof(msg), "Time: %s", buf);
     drawStatus(msg, 0x00FF88);
-    delay(1200);
+    delay(NTP_STATUS_MS);
 
     Serial.println("[ntp] ════════════════════════════════");
     return true;
@@ -318,11 +329,37 @@ static bool connectWiFi(const char* ssid, const char* pass,
     Serial.printf("[wifi] Connecting to: %s\n", ssid);
 
     WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, pass);
-
+    NVSConfig::WiFiHint hint = NVSConfig::loadWiFiHint();
     uint32_t t0   = millis();
     int      dots = 0;
     char     msg[80];
+
+    // Phase 1: fast connect using last known BSSID/channel.
+    if (hint.valid) {
+        Serial.printf("[wifi] Fast connect via cached AP hint (ch=%d)\n", (int)hint.channel);
+        WiFi.begin(ssid, pass, (int32_t)hint.channel, hint.bssid, true);
+
+        while (WiFi.status() != WL_CONNECTED) {
+            uint32_t elapsed = millis() - t0;
+            if (elapsed > WIFI_FAST_CONNECT_MS) {
+                Serial.printf("[wifi] Fast connect timeout after %lu ms\n", elapsed);
+                break;
+            }
+            Serial.printf("[wifi] fast status=%d  elapsed=%lu ms\n", WiFi.status(), elapsed);
+            snprintf(msg, sizeof(msg), "Fast connect %s%s",
+                     ssid, (dots++ % 2) ? " ..." : "    ");
+            drawStatus(msg, 0x00D4FF);
+            delay(WIFI_CONNECT_POLL_MS);
+        }
+    }
+
+    // Phase 2: fallback standard connect.
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[wifi] Falling back to normal connect");
+        WiFi.disconnect(false, false);
+        delay(40);
+        WiFi.begin(ssid, pass);
+    }
 
     while (WiFi.status() != WL_CONNECTED) {
         uint32_t elapsed = millis() - t0;
@@ -336,12 +373,19 @@ static bool connectWiFi(const char* ssid, const char* pass,
         snprintf(msg, sizeof(msg), "Connecting to %s%s",
                  ssid, (dots++ % 2) ? " ..." : "    ");
         drawStatus(msg, 0x00D4FF);
-        delay(500);
+        delay(WIFI_CONNECT_POLL_MS);
     }
 
     Serial.printf("[wifi] Connected!  IP=%s  RSSI=%d dBm  channel=%d\n",
                   WiFi.localIP().toString().c_str(),
                   WiFi.RSSI(), WiFi.channel());
+
+    const uint8_t* bssid = WiFi.BSSID();
+    if (bssid) {
+        NVSConfig::saveWiFiHint(bssid, WiFi.channel());
+        Serial.printf("[wifi] AP hint cached: %02X:%02X:%02X:%02X:%02X:%02X ch=%d\n",
+                      bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], WiFi.channel());
+    }
 
     // mDNS — device reachable at http://<WIFI_HOSTNAME>.local
     if (MDNS.begin(WIFI_HOSTNAME)) {
@@ -350,14 +394,14 @@ static bool connectWiFi(const char* ssid, const char* pass,
         Serial.println("[mdns] Failed to start");
     }
 
-    // Let the WiFi/IP stack fully settle before HTTPS calls
-    Serial.println("[wifi] Settling 2 s...");
-    delay(2000);
+    // Let the WiFi/IP stack settle before HTTPS calls.
+    Serial.printf("[wifi] Settling %d ms...\n", WIFI_SETTLE_MS);
+    delay(WIFI_SETTLE_MS);
 
     snprintf(msg, sizeof(msg), "WiFi OK  %s  (%d dBm)",
              WiFi.localIP().toString().c_str(), WiFi.RSSI());
     drawStatus(msg, 0x00FF88);
-    delay(800);
+    delay(WIFI_OK_STATUS_MS);
 
     Serial.println("[wifi] ════════════════════════════════");
     return true;
@@ -424,7 +468,14 @@ inline void run() {
     // ── Step 4: fetch current UTC offset (every boot) ─────────────────────────
     int32_t offset = 0;
     if (loc.valid) {
-        offset = fetchUtcOffset(loc.lat, loc.lon);
+        NVSConfig::UtcOffsetCache cache = NVSConfig::loadUtcOffsetCache();
+        if (cache.valid) {
+            offset = cache.offsetSec;
+            Serial.printf("[tz] Using cached UTC offset %+d s\n", offset);
+        } else {
+            offset = fetchUtcOffset(loc.lat, loc.lon);
+            NVSConfig::saveUtcOffsetCache(offset, time(nullptr));
+        }
     } else {
         Serial.println("[boot] → No location — using UTC offset 0");
     }
@@ -452,14 +503,14 @@ inline void run() {
                      tleResult.satellitesMissing);
             drawStatus(msg, 0xFFAA00);
         }
-        delay(1200);
+        delay(TLE_STATUS_MS);
     }
 
     Serial.println("\n[boot] ╔══════════════════════════════╗");
     Serial.println(  "[boot] ║   Boot sequence complete     ║");
     Serial.println(  "[boot] ╚══════════════════════════════╝\n");
 
-    delay(500);
+    delay(BOOT_END_PAUSE_MS);
     tft.fillRect(0, STATUS_Y, 800, STATUS_H, TFT_BLACK);
 }
 

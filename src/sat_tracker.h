@@ -77,6 +77,7 @@ static void computeNextPasses() {
 }
 
 inline bool begin(uint32_t noradId) {
+    uint32_t t_begin0 = millis();
     memset(&state, 0, sizeof(state));
     state.noradId = noradId;
 
@@ -107,7 +108,11 @@ inline bool begin(uint32_t noradId) {
 
     Serial.printf("[tracker] Ready: %s  (NORAD %lu)\n",
                   state.name, (unsigned long)noradId);
+
+    uint32_t t_pass0 = millis();
     computeNextPasses();
+    Serial.printf("[perf] SatTracker::begin: pass compute %lu ms\n", millis() - t_pass0);
+    Serial.printf("[perf] SatTracker::begin: total        %lu ms\n", millis() - t_begin0);
     return true;
 }
 
