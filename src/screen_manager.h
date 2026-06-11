@@ -49,6 +49,7 @@ static void switchTo(ID id) {
     lv_obj_clear_flag(panels[id], LV_OBJ_FLAG_HIDDEN);
     current = id;
     updateNavHighlight();
+    if (id == MAP) ScreenMap::onShow();
 }
 
 static void sat_name_cb(lv_event_t*) { ScreenSelector::open(); }

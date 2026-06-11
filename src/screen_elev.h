@@ -34,6 +34,11 @@ static lv_obj_t* _lbl_xaos  = nullptr;
 static lv_obj_t* _lbl_xmax  = nullptr;
 static lv_obj_t* _lbl_xlos  = nullptr;
 
+static lv_obj_t* _geo_panel  = nullptr;
+static lv_obj_t* _geo_lbl_az  = nullptr;
+static lv_obj_t* _geo_lbl_el  = nullptr;
+static lv_obj_t* _geo_lbl_inc = nullptr;
+
 // ── Profile state ─────────────────────────────────────────────────────────────
 static time_t  _profilePassStart = -1;
 static time_t  _t0 = 0, _t1 = 0;
@@ -262,6 +267,35 @@ inline void build(lv_obj_t* panel) {
     _lbl_azinfo = mk_label(panel, F14, C_DIM, 0, CHY + CH + 46);
     lv_obj_set_width(_lbl_azinfo, CONTENT_W);
     lv_obj_set_style_text_align(_lbl_azinfo, LV_TEXT_ALIGN_CENTER, 0);
+
+    // ── GEO overlay (shown instead of chart for geostationary satellites) ─────
+    _geo_panel = mk_panel(panel, 0, 0, CONTENT_W, CONTENT_H, C_BG);
+
+    lv_obj_t* geo_title = mk_label(_geo_panel, &lv_font_montserrat_20, C_GOLD,
+                                    0, 80, "GEOSTATIONARY SATELLITE");
+    lv_obj_set_width(geo_title, CONTENT_W);
+    lv_obj_set_style_text_align(geo_title, LV_TEXT_ALIGN_CENTER, 0);
+
+    lv_obj_t* geo_sub = mk_label(_geo_panel, F14, C_DIM,
+                                  0, 114, "Fixed orbital position \xe2\x80\x94 no elevation profile");
+    lv_obj_set_width(geo_sub, CONTENT_W);
+    lv_obj_set_style_text_align(geo_sub, LV_TEXT_ALIGN_CENTER, 0);
+
+    mk_panel(_geo_panel, 200, 148, 400, 1, C_DIV);
+
+    _geo_lbl_az  = mk_label(_geo_panel, FT, C_VAL, 0, 168);
+    lv_obj_set_width(_geo_lbl_az, CONTENT_W);
+    lv_obj_set_style_text_align(_geo_lbl_az, LV_TEXT_ALIGN_CENTER, 0);
+
+    _geo_lbl_el  = mk_label(_geo_panel, FT, C_VAL, 0, 198);
+    lv_obj_set_width(_geo_lbl_el, CONTENT_W);
+    lv_obj_set_style_text_align(_geo_lbl_el, LV_TEXT_ALIGN_CENTER, 0);
+
+    _geo_lbl_inc = mk_label(_geo_panel, FT, C_DIM, 0, 228);
+    lv_obj_set_width(_geo_lbl_inc, CONTENT_W);
+    lv_obj_set_style_text_align(_geo_lbl_inc, LV_TEXT_ALIGN_CENTER, 0);
+
+    lv_obj_add_flag(_geo_panel, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ── Update (called every second) ─────────────────────────────────────────────
@@ -269,6 +303,25 @@ inline void update() {
     const SatTracker::State& s = SatTracker::getState();
     time_t now = time(nullptr);
     char buf[80]; struct tm ti{};
+
+    if (s.isGeo) {
+        lv_obj_clear_flag(_geo_panel, LV_OBJ_FLAG_HIDDEN);
+
+        static const char* compass[] = {
+            "N","NNE","NE","ENE","E","ESE","SE","SSE",
+            "S","SSW","SW","WSW","W","WNW","NW","NNW"
+        };
+        const char* dir = compass[(int)((s.azimuth + 11.25) / 22.5) % 16];
+        snprintf(buf, sizeof(buf), "Azimuth  %.1f\xc2\xb0  %s", s.azimuth, dir);
+        lv_label_set_text(_geo_lbl_az, buf);
+        snprintf(buf, sizeof(buf), "Elevation  %.1f\xc2\xb0", s.elevation);
+        lv_label_set_text(_geo_lbl_el, buf);
+        snprintf(buf, sizeof(buf), "Inclination  %.2f\xc2\xb0", s.inclination);
+        lv_label_set_text(_geo_lbl_inc, buf);
+        return;
+    }
+
+    lv_obj_add_flag(_geo_panel, LV_OBJ_FLAG_HIDDEN);
 
     if (!s.pass.valid) {
         lv_label_set_text(_lbl_aos,    "AOS  --:--:--");

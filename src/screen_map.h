@@ -35,6 +35,7 @@ static lv_obj_t*   _canvas   = nullptr;
 
 static double _qth_lat = 0, _qth_lon = 0;
 static bool   _qth_valid = false;
+static int    _tick = 0;
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 static int _lonToX(double lon) {
@@ -218,10 +219,12 @@ inline void build(lv_obj_t* panel) {
     _qth_valid = loc.valid; _qth_lat = loc.lat; _qth_lon = loc.lon;
 }
 
+// Called when the user switches to the MAP tab — forces immediate repaint.
+inline void onShow() { _tick = 4; }
+
 // ── Update (heavy repaint throttled to every 5 s) ─────────────────────────────
 inline void update() {
     if (!_cbuf || !_map_orig || !_canvas) return;
-    static int _tick = 0;
     if (++_tick < 5) return;
     _tick = 0;
     const SatTracker::State& s = SatTracker::getState();
