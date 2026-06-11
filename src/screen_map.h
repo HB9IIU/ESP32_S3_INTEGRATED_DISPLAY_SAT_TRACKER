@@ -36,6 +36,8 @@ static lv_obj_t*   _canvas   = nullptr;
 static double _qth_lat = 0, _qth_lon = 0;
 static bool   _qth_valid = false;
 static int    _tick = 0;
+static bool   _allSatsMode = false;
+static lv_obj_t* _toggle_lbl = nullptr;
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 static int _lonToX(double lon) {
@@ -174,6 +176,71 @@ static void _drawFootprintOutline(double lat_deg, double lon_deg, double alt_km)
     }
 }
 
+// ── Toggle callback ───────────────────────────────────────────────────────────
+static void _toggle_cb(lv_event_t*) {
+    _allSatsMode = !_allSatsMode;
+    lv_label_set_text(_toggle_lbl, _allSatsMode ? "THIS SAT" : "ALL SATS");
+    _tick = 4;   // force immediate repaint
+}
+
+// ── All-sats draw path ────────────────────────────────────────────────────────
+static void _drawAllSats() {
+    int count;
+    const SatTracker::MapEntry* entries = SatTracker::getMapEntries(count);
+    const SatTracker::State&    s       = SatTracker::getState();
+
+    // Terminator only (alt=0 disables footprint shading inside _applyOverlay)
+    _applyOverlay(0.0, 0.0, 0.0);
+
+    // QTH crosshair
+    if (_qth_valid) {
+        int qx = _lonToX(_qth_lon), qy = _latToY(_qth_lat);
+        _seg(qx-7, qy, qx+7, qy, lv_color_hex(C_GOLD), 1);
+        _seg(qx, qy-7, qx, qy+7, lv_color_hex(C_GOLD), 1);
+        _dot(qx, qy, lv_color_hex(C_GOLD), 3);
+    }
+
+    // Footprint outlines: LEO = dim cyan, GEO = dim gold
+    for (int i = 0; i < count; i++) {
+        const SatTracker::MapEntry& e = entries[i];
+        if (e.alt <= 0.0) continue;
+        lv_draw_line_dsc_t ld; lv_draw_line_dsc_init(&ld);
+        ld.color = lv_color_hex(C_GOLD);
+        ld.width = 1;
+        double rho = acos(RE / (RE + e.alt));
+        double lat = e.lat * M_PI/180.0, lon = e.lon * M_PI/180.0;
+        const int STEPS = 72;
+        int prevX = -1, prevY = -1; double prevLonD = 0; bool first = true;
+        for (int k = 0; k <= STEPS; k++) {
+            double beta = k * 2.0 * M_PI / STEPS;
+            double lat2 = asin(sin(lat)*cos(rho) + cos(lat)*sin(rho)*cos(beta));
+            double lon2 = lon + atan2(sin(beta)*sin(rho)*cos(lat),
+                                      cos(rho) - sin(lat)*sin(lat2));
+            while (lon2 >  M_PI) lon2 -= 2.0*M_PI;
+            while (lon2 < -M_PI) lon2 += 2.0*M_PI;
+            double ld2 = lon2*180.0/M_PI, la2 = lat2*180.0/M_PI;
+            int x = _lonToX(ld2), y = _latToY(la2);
+            if (!first && fabs(ld2 - prevLonD) < 180.0) {
+                lv_point_t seg[2] = {{(lv_coord_t)prevX,(lv_coord_t)prevY},
+                                     {(lv_coord_t)x,(lv_coord_t)y}};
+                lv_canvas_draw_line(_canvas, seg, 2, &ld);
+            }
+            prevX = x; prevY = y; prevLonD = ld2; first = false;
+        }
+    }
+
+    // Satellite dots: tracked = green+larger, GEO = gold, LEO = cyan
+    for (int i = 0; i < count; i++) {
+        const SatTracker::MapEntry& e = entries[i];
+        bool tracked = (e.noradId == s.noradId);
+        lv_color_t col = tracked            ? lv_color_hex(C_GREEN)
+                       : e.isGeo            ? lv_color_hex(C_GOLD)
+                       :                      lv_color_hex(C_CYAN);
+        int r = tracked ? 5 : 3;
+        _dot(_lonToX(e.lon), _latToY(e.lat), col, r);
+    }
+}
+
 // ── JPEG load (once at build time) ───────────────────────────────────────────
 static bool _loadMap() {
     if (!LittleFS.exists("/worldmap.jpg")) {
@@ -217,6 +284,25 @@ inline void build(lv_obj_t* panel) {
 
     NVSConfig::LocationData loc = NVSConfig::loadLocation();
     _qth_valid = loc.valid; _qth_lat = loc.lat; _qth_lon = loc.lon;
+
+    // Toggle button — floats over top-right corner of the canvas
+    lv_obj_t* btn = lv_btn_create(panel);
+    lv_obj_set_pos(btn, 700, 4);
+    lv_obj_set_size(btn, 96, 28);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x1C2840), 0);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A3F60), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_80, 0);
+    lv_obj_set_style_border_color(btn, lv_color_hex(C_DIV), 0);
+    lv_obj_set_style_border_width(btn, 1, 0);
+    lv_obj_set_style_radius(btn, 4, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    lv_obj_add_event_cb(btn, _toggle_cb, LV_EVENT_CLICKED, nullptr);
+
+    _toggle_lbl = lv_label_create(btn);
+    lv_label_set_text(_toggle_lbl, "ALL SATS");
+    lv_obj_set_style_text_font(_toggle_lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(_toggle_lbl, lv_color_hex(C_CYAN), 0);
+    lv_obj_center(_toggle_lbl);
 }
 
 // Called when the user switches to the MAP tab — forces immediate repaint.
@@ -227,6 +313,13 @@ inline void update() {
     if (!_cbuf || !_map_orig || !_canvas) return;
     if (++_tick < 5) return;
     _tick = 0;
+
+    if (_allSatsMode) {
+        _drawAllSats();
+        lv_obj_invalidate(_canvas);
+        return;
+    }
+
     const SatTracker::State& s = SatTracker::getState();
 
     // 1. Per-pixel pass: terminator + footprint shading → writes _map_orig to _cbuf

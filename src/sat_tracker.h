@@ -19,6 +19,12 @@ struct SkyEntry {
     bool     isGeo;
 };
 
+struct MapEntry {
+    uint32_t noradId;
+    double   lat, lon, alt;
+    bool     isGeo;
+};
+
 struct PassInfo {
     bool   valid   = false;
     time_t start   = 0;
@@ -63,6 +69,8 @@ static time_t   _prevRangeTime = 0;
 
 static SkyEntry     skyEntries[MAX_SKY];
 static volatile int skyCount = 0;
+static MapEntry     mapEntries[SAT_COUNT];
+static volatile int mapEntryCount = 0;
 static TaskHandle_t _skyTaskHandle = nullptr;
 
 static time_t jdToUnix(double jd) {
@@ -217,27 +225,45 @@ inline const SkyEntry* getSkyEntries(int& count) {
     return skyEntries;
 }
 
+inline const MapEntry* getMapEntries(int& count) {
+    count = mapEntryCount;
+    return mapEntries;
+}
+
 // Runs on Core 0 — LittleFS + SGP4 scan without blocking the LVGL loop.
 static void _skyTaskFn(void*) {
     NVSConfig::LocationData loc = NVSConfig::loadLocation();
     char     name[30], l1[70], l2[70];
     SkyEntry work[MAX_SKY];
+    MapEntry mapWork[SAT_COUNT];
 
     for (;;) {
-        uint32_t t0  = millis();
-        int      cnt = 0;
-        time_t   now = time(nullptr);
+        uint32_t t0     = millis();
+        int      cnt    = 0;
+        int      mapCnt = 0;
+        time_t   now    = time(nullptr);
 
-        for (int g = 0; g < SAT_GROUP_COUNT && cnt < MAX_SKY; g++) {
-            for (int i = 0; i < SAT_GROUPS[g].count && cnt < MAX_SKY; i++) {
+        for (int g = 0; g < SAT_GROUP_COUNT; g++) {
+            for (int i = 0; i < SAT_GROUPS[g].count; i++) {
                 uint32_t id = SAT_GROUPS[g].ids[i];
                 if (!TLEManager::tleExists(id)) continue;
                 if (!TLEManager::loadTLE(id, name, l1, l2)) continue;
                 if (!_skySgp4.init(name, l1, l2)) continue;
                 if (loc.valid) _skySgp4.site(loc.lat, loc.lon, 0.0);
                 _skySgp4.findsat((unsigned long)now);
-                if (_skySgp4.satEl <= 0.0) continue;
 
+                // All satellites → map entries (no elevation filter)
+                if (mapCnt < SAT_COUNT) {
+                    mapWork[mapCnt].noradId = id;
+                    mapWork[mapCnt].lat     = _skySgp4.satLat;
+                    mapWork[mapCnt].lon     = _skySgp4.satLon;
+                    mapWork[mapCnt].alt     = _skySgp4.satAlt;
+                    mapWork[mapCnt].isGeo   = (_skySgp4.satAlt > 35000.0);
+                    mapCnt++;
+                }
+
+                // Above-horizon satellites → sky entries
+                if (_skySgp4.satEl <= 0.0 || cnt >= MAX_SKY) continue;
                 SkyEntry& e = work[cnt];
                 strncpy(e.name, name, sizeof(e.name) - 1);
                 e.name[sizeof(e.name) - 1] = '\0';
@@ -260,10 +286,13 @@ static void _skyTaskFn(void*) {
                 if (swap) std::swap(work[i], work[j]);
             }
 
-        // Publish: write entries first, then update count atomically
-        memcpy(skyEntries, work, cnt * sizeof(SkyEntry));
+        // Publish atomically
+        memcpy(skyEntries, work,    cnt    * sizeof(SkyEntry));
         skyCount = cnt;
-        Serial.printf("[sky] %d visible  (%lu ms)\n", skyCount, millis() - t0);
+        memcpy(mapEntries, mapWork, mapCnt * sizeof(MapEntry));
+        mapEntryCount = mapCnt;
+        Serial.printf("[sky] %d visible / %d total  (%lu ms)\n",
+                      skyCount, mapEntryCount, millis() - t0);
 
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
