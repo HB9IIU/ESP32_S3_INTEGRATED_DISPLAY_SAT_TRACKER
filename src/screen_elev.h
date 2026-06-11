@@ -43,6 +43,7 @@ static lv_obj_t* _geo_lbl_inc = nullptr;
 static time_t  _profilePassStart = -1;
 static time_t  _t0 = 0, _t1 = 0;
 static double  _azAtTCA = 0.0;
+static bool    _blinkOn = true;
 
 // Pre-computed point arrays (static to avoid stack pressure)
 static lv_point_t _el_pts[PROFILE_PTS];
@@ -248,9 +249,15 @@ inline void build(lv_obj_t* panel) {
     brd.border_width = 1; brd.radius = 0;
     lv_canvas_draw_rect(_canvas, 0, 0, CW, CH, &brd);
 
-    // ── Gold cursor line (repositioned every second in update) ─────────────────
-    _cursor = mk_panel(panel, CHX, CHY, 2, CH, C_GOLD);
-    lv_obj_set_style_opa(_cursor, LV_OPA_70, 0);
+    // ── Gold cursor dot (repositioned + blinked every second in update) ─────────
+    _cursor = lv_obj_create(panel);
+    lv_obj_set_size(_cursor, 10, 10);
+    lv_obj_set_style_radius(_cursor, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(_cursor, lv_color_hex(C_GOLD), 0);
+    lv_obj_set_style_bg_opa(_cursor, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(_cursor, 0, 0);
+    lv_obj_set_style_pad_all(_cursor, 0, 0);
+    lv_obj_clear_flag(_cursor, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(_cursor, LV_OBJ_FLAG_HIDDEN);
 
     // ── X-axis tick labels ─────────────────────────────────────────────────────
@@ -349,12 +356,17 @@ inline void update() {
     snprintf(buf, sizeof(buf), "MAX  %.1f°", s.pass.maxEl);
     lv_label_set_text(_lbl_max, buf);
 
-    // ── Cursor ────────────────────────────────────────────────────────────────
+    // ── Cursor dot — sits on the elevation curve, blinks every second ─────────
     if (_t1 > _t0 && now >= _t0 && now <= _t1) {
-        lv_obj_set_pos(_cursor, _timeToPanelX(now), CHY);
-        lv_obj_clear_flag(_cursor, LV_OBJ_FLAG_HIDDEN);
+        int cx = _timeToPanelX(now) - 5;
+        int cy = CHY + _elToY(s.elevation) - 5;
+        lv_obj_set_pos(_cursor, cx, cy);
+        _blinkOn = !_blinkOn;
+        if (_blinkOn) lv_obj_clear_flag(_cursor, LV_OBJ_FLAG_HIDDEN);
+        else          lv_obj_add_flag  (_cursor, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(_cursor, LV_OBJ_FLAG_HIDDEN);
+        _blinkOn = true;
     }
 
     // ── Status ────────────────────────────────────────────────────────────────

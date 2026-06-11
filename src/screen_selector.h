@@ -15,6 +15,8 @@ static lv_obj_t* _overlay = nullptr;
 static lv_obj_t* _list    = nullptr;
 static bool      _built   = false;
 
+static void (*onSatSelected)() = nullptr;
+
 static void _close_cb(lv_event_t*) {
     lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
 }
@@ -24,6 +26,7 @@ static void _sat_cb(lv_event_t* e) {
     NVSConfig::saveSelectedSat(id);
     SatTracker::begin(id);
     lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
+    if (onSatSelected) onSatSelected();
 }
 
 static void _populateList() {

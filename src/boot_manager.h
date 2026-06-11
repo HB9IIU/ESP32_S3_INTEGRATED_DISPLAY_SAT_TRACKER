@@ -77,7 +77,7 @@ static void checkFactoryReset() {
                 tft.drawString("Factory Reset", 400, 210);
                 tft.setFont(&fonts::DejaVu18);
                 tft.setTextColor(TFT_WHITE);
-                tft.drawString("Clearing settings — rebooting...", 400, 270);
+                tft.drawString("Clearing settings - rebooting...", 400, 270);
                 NVSConfig::clearWiFi();
                 NVSConfig::clearLocation();
                 NVSConfig::clearUtcOffsetCache();
@@ -172,7 +172,7 @@ static void rebootIn(const char* reason, uint8_t seconds = 10) {
     Serial.printf("[boot] REBOOTING: %s\n", reason);
     char msg[80];
     for (int i = seconds; i > 0; i--) {
-        snprintf(msg, sizeof(msg), "%s — rebooting in %d s", reason, i);
+        snprintf(msg, sizeof(msg), "%s - rebooting in %d s", reason, i);
         drawStatus(msg, 0xFF4444);
         Serial.printf("[boot] %s\n", msg);
         delay(1000);
@@ -251,7 +251,7 @@ static int32_t fetchUtcOffset(float lat, float lon) {
     String body = HttpUtils::get(url, true);
     if (body.isEmpty()) {
         Serial.println("[tz] ERROR: empty response — defaulting to UTC");
-        drawStatus("Timezone fetch failed — using UTC", 0xFF4444);
+        drawStatus("Timezone fetch failed - using UTC", 0xFF4444);
         delay(1500);
         return 0;
     }
@@ -260,7 +260,7 @@ static int32_t fetchUtcOffset(float lat, float lon) {
     DeserializationError err = deserializeJson(doc, body);
     if (err) {
         Serial.printf("[tz] ERROR: JSON parse failed — %s\n", err.c_str());
-        drawStatus("Timezone parse error — using UTC", 0xFF4444);
+        drawStatus("Timezone parse error - using UTC", 0xFF4444);
         delay(1500);
         return 0;
     }
@@ -437,7 +437,7 @@ inline void run() {
         wifiOk = connectWiFi(creds.ssid, creds.password);
         if (!wifiOk && attempt < 3) {
             Serial.println("[boot] Retrying in 5 s...");
-            drawStatus("WiFi failed — retrying ...", 0xFFAA00);
+            drawStatus("WiFi failed - retrying ...", 0xFFAA00);
             WiFi.disconnect(true);
             delay(5000);
         }
@@ -495,7 +495,7 @@ inline void run() {
     {
         char msg[80];
         if (tleResult.satellitesMissing == 0) {
-            snprintf(msg, sizeof(msg), "TLE ready — %d satellites", SAT_COUNT);
+            snprintf(msg, sizeof(msg), "TLE ready - %d satellites", SAT_COUNT);
             drawStatus(msg, 0x00FF88);
         } else {
             snprintf(msg, sizeof(msg), "TLE: %d/%d satellites (%d missing)",

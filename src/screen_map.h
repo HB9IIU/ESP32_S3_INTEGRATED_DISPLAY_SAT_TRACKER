@@ -9,6 +9,8 @@
 #include "sat_tracker.h"
 #include "nvs_config.h"
 
+LV_FONT_DECLARE(JetBrainsMono_Regular_18);
+
 namespace ScreenMap {
 
 // ── Map geometry ──────────────────────────────────────────────────────────────
@@ -38,6 +40,27 @@ static bool   _qth_valid = false;
 static int    _tick = 0;
 static bool   _allSatsMode = false;
 static lv_obj_t* _toggle_lbl = nullptr;
+static lv_obj_t* _lbl_info   = nullptr;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+static void _maidenhead(double lat, double lon, char* out) {
+    double lo = lon + 180.0, la = lat + 90.0;
+    out[0] = 'A' + (int)(lo / 20.0);
+    out[1] = 'A' + (int)(la / 10.0);
+    out[2] = '0' + (int)(fmod(lo, 20.0) / 2.0);
+    out[3] = '0' + (int)(fmod(la, 10.0));
+    out[4] = 'a' + (int)(fmod(lo, 2.0) * 12.0);
+    out[5] = 'a' + (int)(fmod(la, 1.0) * 24.0);
+    out[6] = '\0';
+}
+
+static const char* _compass(double az) {
+    static const char* d[] = {
+        "N","NNE","NE","ENE","E","ESE","SE","SSE",
+        "S","SSW","SW","WSW","W","WNW","NW","NNW"
+    };
+    return d[(int)((az + 11.25) / 22.5) % 16];
+}
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 static int _lonToX(double lon) {
@@ -303,6 +326,24 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(_toggle_lbl, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_toggle_lbl, lv_color_hex(C_CYAN), 0);
     lv_obj_center(_toggle_lbl);
+
+    // Info strip — semi-transparent bar at the bottom, floats above canvas
+    lv_obj_t* strip = lv_obj_create(panel);
+    lv_obj_set_pos(strip, 0, CH - 26);
+    lv_obj_set_size(strip, CW, 26);
+    lv_obj_set_style_bg_color(strip, lv_color_hex(0x0A0E14), 0);
+    lv_obj_set_style_bg_opa(strip, LV_OPA_70, 0);
+    lv_obj_set_style_border_width(strip, 0, 0);
+    lv_obj_set_style_pad_all(strip, 0, 0);
+    lv_obj_clear_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+
+    _lbl_info = lv_label_create(strip);
+    lv_label_set_text(_lbl_info, "");
+    lv_obj_set_style_text_font(_lbl_info, &JetBrainsMono_Regular_18, 0);
+    lv_obj_set_style_text_color(_lbl_info, lv_color_hex(C_VAL), 0);
+    lv_obj_set_width(_lbl_info, CW);
+    lv_obj_set_style_text_align(_lbl_info, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_lbl_info, LV_ALIGN_CENTER, 0, 0);
 }
 
 // Called when the user switches to the MAP tab — forces immediate repaint.
@@ -311,6 +352,24 @@ inline void onShow() { _tick = 4; }
 // ── Update (heavy repaint throttled to every 5 s) ─────────────────────────────
 inline void update() {
     if (!_cbuf || !_map_orig || !_canvas) return;
+
+    // Info strip — updated every second regardless of canvas throttle
+    if (_lbl_info) {
+        const SatTracker::State& s = SatTracker::getState();
+        if (!_allSatsMode && s.tleLoaded) {
+            char loc[8]; _maidenhead(s.lat, s.lon, loc);
+            char buf[80];
+            snprintf(buf, sizeof(buf),
+                     "AZ %5.1f\xc2\xb0  %-3s     EL %+5.1f\xc2\xb0     LOC  %s",
+                     s.azimuth, _compass(s.azimuth), s.elevation, loc);
+            lv_label_set_text(_lbl_info, buf);
+            lv_obj_set_style_text_color(_lbl_info,
+                lv_color_hex(s.elevation > 0 ? C_GREEN : C_VAL), 0);
+        } else {
+            lv_label_set_text(_lbl_info, "");
+        }
+    }
+
     if (++_tick < 5) return;
     _tick = 0;
 

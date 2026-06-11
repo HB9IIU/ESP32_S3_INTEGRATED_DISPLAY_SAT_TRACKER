@@ -131,7 +131,8 @@ inline void build(lv_obj_t* scr) {
 
     t0 = millis();
     ScreenPolar::build(panels[POLAR]);
-    ScreenPolar::onSatSelected = []() { switchTo(TRACKER); };
+    ScreenPolar::onSatSelected    = []() { switchTo(TRACKER); };
+    ScreenSelector::onSatSelected = []() { switchTo(TRACKER); };
     Serial.printf("[perf] Screen build POLAR             %lu ms\n", millis() - t0);
 
     t0 = millis();
