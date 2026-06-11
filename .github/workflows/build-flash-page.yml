@@ -23,6 +23,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so git describe can find tags
 
       - uses: actions/setup-python@v5
         with:
@@ -48,7 +50,7 @@ jobs:
 
       - name: Assemble deploy folder
         run: |
-          VERSION="${GITHUB_SHA::7}"
+          VERSION="$(git describe --tags --always --dirty=+ 2>/dev/null || echo "${GITHUB_SHA::7}")"
           BUILD_DATE="$(date -u '+%Y-%m-%d')"
 
           mkdir -p deploy/firmware
