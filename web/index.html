@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32-S3 SAT Tracker — Flash Firmware</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --accent:  #58a6ff;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.5rem;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+    }
+    .callsign {
+      display: inline-block;
+      background: #388bfd26;
+      color: var(--accent);
+      border: 1px solid #388bfd55;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.8rem;
+      margin-bottom: 1.2rem;
+      letter-spacing: 0.1em;
+    }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    .specs {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 1rem;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    .specs .label { color: var(--muted); white-space: nowrap; }
+    .specs .value { color: var(--text); }
+    esp-web-install-button {
+      display: block;
+      margin: 0 auto 1.5rem;
+    }
+    .note {
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.7;
+    }
+    .note strong { color: var(--text); }
+    .note a { color: var(--accent); text-decoration: none; }
+    .note a:hover { text-decoration: underline; }
+    .build-info {
+      margin-top: 1.75rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="callsign">HB9IIU</span>
+    <h1>SAT Tracker</h1>
+    <p class="subtitle">
+      Real-time satellite tracker &amp; pass predictor<br>
+      for the Waveshare ESP32-S3-Touch-LCD-7
+    </p>
+
+    <div class="specs">
+      <span class="label">Board</span>   <span class="value">Waveshare ESP32-S3-Touch-LCD-7 Rev 1.2</span>
+      <span class="label">Display</span> <span class="value">800 × 480 RGB parallel · capacitive touch</span>
+      <span class="label">Flash</span>   <span class="value">16 MB · 8 MB OPI PSRAM</span>
+      <span class="label">Installs</span><span class="value">Firmware + world map &amp; splash assets (~9.5 MB)</span>
+    </div>
+
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+
+    <p class="note">
+      Requires <strong>Chrome</strong> or <strong>Edge</strong> — Firefox is not supported.<br>
+      Connect the device via USB before clicking <em>Install</em>.<br><br>
+      <a href="https://github.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER" target="_blank">
+        View source on GitHub →
+      </a>
+    </p>
+
+    <p class="build-info">Build %%VERSION%% &nbsp;·&nbsp; %%BUILD_DATE%%</p>
+  </div>
+</body>
+</html>

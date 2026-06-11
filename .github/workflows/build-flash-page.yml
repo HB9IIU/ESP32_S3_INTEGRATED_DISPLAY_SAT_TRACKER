@@ -1,0 +1,76 @@
+name: Build Firmware & Deploy Flash Page
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.cache/pip
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build firmware
+        run: pio run -e DISPLAY
+
+      - name: Build filesystem image
+        run: pio run -e DISPLAY -t buildfs
+
+      - name: Assemble deploy folder
+        run: |
+          VERSION="${GITHUB_SHA::7}"
+          BUILD_DATE="$(date -u '+%Y-%m-%d')"
+
+          mkdir -p deploy/firmware
+
+          cp .pio/build/DISPLAY/bootloader.bin  deploy/firmware/
+          cp .pio/build/DISPLAY/partitions.bin  deploy/firmware/
+          cp .pio/build/DISPLAY/firmware.bin    deploy/firmware/
+          cp .pio/build/DISPLAY/littlefs.bin    deploy/firmware/
+
+          sed -e "s/%%VERSION%%/${VERSION}/g" \
+              -e "s/%%BUILD_DATE%%/${BUILD_DATE}/g" \
+              web/manifest.json > deploy/manifest.json
+
+          sed -e "s/%%VERSION%%/${VERSION}/g" \
+              -e "s/%%BUILD_DATE%%/${BUILD_DATE}/g" \
+              web/index.html > deploy/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./deploy
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
