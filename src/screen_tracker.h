@@ -27,7 +27,7 @@ static lv_obj_t *lbl_lat, *lbl_lon, *lbl_loc, *lbl_alt, *lbl_range, *lbl_range_r
 static lv_obj_t *lbl_orbit, *lbl_velocity, *lbl_delay, *lbl_doppler;
 static lv_obj_t *lbl_pass_hdr;
 static lv_obj_t *lbl_aos, *lbl_los, *lbl_tca, *lbl_duration, *lbl_max_el, *lbl_pass_az;
-static lv_obj_t *lbl_countdown;
+static lv_obj_t *lbl_countdown, *lbl_los_countdown;
 static lv_obj_t *lbl_az_val, *lbl_el_val;
 
 // ── Polar canvas state ────────────────────────────────────────────────────────
@@ -224,13 +224,14 @@ inline void build(lv_obj_t* panel) {
     // ── Right: next pass / geostationary ─────────────────────────────────────
     const int RX = CONTENT_W - COL_W + 8;
     lbl_pass_hdr = mk_label(panel, FT, C_SEC, RX,  8);
-    lbl_aos      = mk_label(panel, FT, C_VAL, RX, 38);
-    lbl_los      = mk_label(panel, FT, C_VAL, RX, 64);
-    lbl_tca      = mk_label(panel, FT, C_VAL, RX, 90);
-    lbl_duration = mk_label(panel, FT, C_VAL, RX, 116);
-    lbl_max_el   = mk_label(panel, FT, C_VAL, RX, 142);
-    lbl_pass_az  = mk_label(panel, FT, C_VAL, RX, 168);
-    lbl_countdown= mk_label(panel, FT, C_GOLD, RX, 194);
+    lbl_aos          = mk_label(panel, FT, C_GREEN, RX, 38);
+    lbl_tca          = mk_label(panel, FT, C_GOLD,  RX, 64);
+    lbl_los          = mk_label(panel, FT, C_RED,   RX, 90);
+    lbl_duration     = mk_label(panel, FT, C_VAL,   RX, 116);
+    lbl_max_el       = mk_label(panel, FT, C_VAL,   RX, 142);
+    lbl_pass_az      = mk_label(panel, FT, C_VAL,   RX, 168);
+    lbl_countdown    = mk_label(panel, FT, C_GOLD,  RX, 194);
+    lbl_los_countdown= mk_label(panel, FT, C_RED,   RX, 220);
 }
 
 // ── Update (called every second) ─────────────────────────────────────────────
@@ -323,6 +324,7 @@ inline void update() {
 
         lv_label_set_text(lbl_countdown, "FIXED ORBIT");
         lv_obj_set_style_text_color(lbl_countdown, lv_color_hex(C_SEC), 0);
+        lv_label_set_text(lbl_los_countdown, "");
 
     } else {
         lv_label_set_text(lbl_pass_hdr, "NEXT PASS");
@@ -332,13 +334,13 @@ inline void update() {
             strftime(buf, sizeof(buf), "AOS  %H:%M:%S", &ti);
             lv_label_set_text(lbl_aos, buf);
 
-            t = s.pass.stop; localtime_r(&t, &ti);
-            strftime(buf, sizeof(buf), "LOS  %H:%M:%S", &ti);
-            lv_label_set_text(lbl_los, buf);
-
             t = s.pass.maxTime; localtime_r(&t, &ti);
             strftime(buf, sizeof(buf), "TCA  %H:%M:%S", &ti);
             lv_label_set_text(lbl_tca, buf);
+
+            t = s.pass.stop; localtime_r(&t, &ti);
+            strftime(buf, sizeof(buf), "LOS  %H:%M:%S", &ti);
+            lv_label_set_text(lbl_los, buf);
 
             int dur = (int)(s.pass.stop - s.pass.start);
             snprintf(buf, sizeof(buf), "DUR  %dm %02ds", dur / 60, dur % 60);
@@ -359,12 +361,18 @@ inline void update() {
                 else            snprintf(buf, sizeof(buf), "in %ds", sc);
                 lv_label_set_text(lbl_countdown, buf);
                 lv_obj_set_style_text_color(lbl_countdown, lv_color_hex(C_GOLD), 0);
+                lv_label_set_text(lbl_los_countdown, "");
             } else if (now <= s.pass.stop) {
                 lv_label_set_text(lbl_countdown, "IN PASS");
                 lv_obj_set_style_text_color(lbl_countdown, lv_color_hex(C_GREEN), 0);
+                int secs = (int)(s.pass.stop - now);
+                int m = secs / 60, sc = secs % 60;
+                snprintf(buf, sizeof(buf), "LOS in %dm %02ds", m, sc);
+                lv_label_set_text(lbl_los_countdown, buf);
             } else {
                 lv_label_set_text(lbl_countdown, "PASS COMPLETE");
                 lv_obj_set_style_text_color(lbl_countdown, lv_color_hex(C_DIM), 0);
+                lv_label_set_text(lbl_los_countdown, "");
             }
         } else {
             lv_label_set_text(lbl_aos,       "AOS  --:--:--");
@@ -375,6 +383,7 @@ inline void update() {
             lv_label_set_text(lbl_pass_az,   "AZ   --");
             lv_label_set_text(lbl_countdown, "Computing...");
             lv_obj_set_style_text_color(lbl_countdown, lv_color_hex(C_DIM), 0);
+            lv_label_set_text(lbl_los_countdown, "");
         }
     }
 }
