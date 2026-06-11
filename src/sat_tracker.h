@@ -86,7 +86,23 @@ static void computeNextPasses() {
 
     uint32_t t0 = millis();
     passinfo pd;  // not "pi" — sgp4unit.h defines pi as 3.14159...
-    sgp4.initpredpoint((unsigned long)time(nullptr), 0.0);
+    time_t now = time(nullptr);
+
+    // If the satellite is already above the horizon, initpredpoint's fixed
+    // backward scan may be shorter than the ongoing pass (MEO sats like
+    // Greencube have multi-hour passes). Scan back in 5-min steps to find
+    // the actual AOS so we don't skip the current pass.
+    time_t searchFrom = now;
+    sgp4.findsat((unsigned long)now);
+    if (sgp4.satEl > 0.0) {
+        for (int step = 1; step <= 12 * 12; step++) {   // up to 12 h back
+            time_t t = now - (time_t)step * 300;
+            sgp4.findsat((unsigned long)t);
+            if (sgp4.satEl <= 0.0) { searchFrom = t; break; }
+        }
+    }
+    sgp4.initpredpoint((unsigned long)searchFrom, 0.0);
+
     for (int i = 0; i < MAX_PASSES; i++) {
         if (!sgp4.nextpass(&pd, 20)) break;
         sgp4.findsat((unsigned long)jdToUnix(pd.jdmax));
