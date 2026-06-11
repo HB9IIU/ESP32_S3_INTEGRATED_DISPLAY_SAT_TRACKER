@@ -30,6 +30,8 @@ static lv_obj_t *lbl_aos, *lbl_los, *lbl_tca, *lbl_duration, *lbl_max_el, *lbl_p
 static lv_obj_t *lbl_countdown, *lbl_los_countdown;
 static lv_obj_t *lbl_az_val, *lbl_el_val;
 
+static void (*onSelectSat)() = nullptr;
+
 // ── Polar canvas state ────────────────────────────────────────────────────────
 static lv_color_t* _cbuf             = nullptr;
 static lv_obj_t*   _canvas           = nullptr;
@@ -150,16 +152,54 @@ inline void build(lv_obj_t* panel) {
 
     // ── Left: orbit telemetry ─────────────────────────────────────────────────
     mk_label(panel, FT, C_SEC, 8,  8, "ORBIT TELEMETRY");
-    lbl_orbit      = mk_label(panel, FT, C_VAL, 8,  38);
-    lbl_lat        = mk_label(panel, FT, C_VAL, 8,  64);
-    lbl_lon        = mk_label(panel, FT, C_VAL, 8,  90);
-    lbl_loc        = mk_label(panel, FT, C_VAL, 8, 116);
-    lbl_alt        = mk_label(panel, FT, C_VAL, 8, 142);
-    lbl_range      = mk_label(panel, FT, C_VAL, 8, 168);
+    mk_label(panel, FT, C_DIM, 8, 38, "ORBIT");
+    lbl_orbit = mk_label(panel, FT, C_VAL, 8, 38);
+    lv_obj_set_width(lbl_orbit, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_orbit, LV_TEXT_ALIGN_RIGHT, 0);
+    mk_label(panel, FT, C_DIM, 8,  64, "LAT");
+    lbl_lat = mk_label(panel, FT, C_VAL, 8, 64);
+    lv_obj_set_width(lbl_lat, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_lat, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8,  90, "LON");
+    lbl_lon = mk_label(panel, FT, C_VAL, 8, 90);
+    lv_obj_set_width(lbl_lon, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_lon, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 116, "LOC");
+    lbl_loc = mk_label(panel, FT, C_VAL, 8, 116);
+    lv_obj_set_width(lbl_loc, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_loc, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 142, "ALT");
+    lbl_alt = mk_label(panel, FT, C_VAL, 8, 142);
+    lv_obj_set_width(lbl_alt, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_alt, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 168, "RNG");
+    lbl_range = mk_label(panel, FT, C_VAL, 8, 168);
+    lv_obj_set_width(lbl_range, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_range, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 194, "RRT");
     lbl_range_rate = mk_label(panel, FT, C_VAL, 8, 194);
-    lbl_velocity   = mk_label(panel, FT, C_VAL, 8, 220);
-    lbl_delay      = mk_label(panel, FT, C_VAL, 8, 246);
-    lbl_doppler    = mk_label(panel, FT, C_VAL, 8, 272);
+    lv_obj_set_width(lbl_range_rate, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_range_rate, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 220, "SPD");
+    lbl_velocity = mk_label(panel, FT, C_VAL, 8, 220);
+    lv_obj_set_width(lbl_velocity, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_velocity, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 246, "DLY");
+    lbl_delay = mk_label(panel, FT, C_VAL, 8, 246);
+    lv_obj_set_width(lbl_delay, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_delay, LV_TEXT_ALIGN_RIGHT, 0);
+    mk_label(panel, FT,  C_DIM, 8,  272, "DOP");
+    mk_label(panel, &lv_font_montserrat_10, C_DIM, 47, 282, "100MHz");
+    lbl_doppler = mk_label(panel, FT, C_VAL, 8, 272);
+    lv_obj_set_width(lbl_doppler, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_doppler, LV_TEXT_ALIGN_RIGHT, 0);
 
     // ── Center top: AZ / EL readout (each centered in its half) ──────────────
     // Thin divider between AZ and EL in the header area only
@@ -169,7 +209,7 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_width(lbl_az_hdr, CANVAS_W / 2);
     lv_obj_set_style_text_align(lbl_az_hdr, LV_TEXT_ALIGN_CENTER, 0);
 
-    lbl_az_val = mk_label(panel, FBV, C_CYAN, COL_W, 22);
+    lbl_az_val = mk_label(panel, FBV, C_VAL, COL_W, 18);
     lv_obj_set_width(lbl_az_val, CANVAS_W / 2);
     lv_obj_set_style_text_align(lbl_az_val, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -177,7 +217,7 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_width(lbl_el_hdr, CANVAS_W / 2);
     lv_obj_set_style_text_align(lbl_el_hdr, LV_TEXT_ALIGN_CENTER, 0);
 
-    lbl_el_val = mk_label(panel, FBV, C_VAL, COL_W + CANVAS_W / 2, 22);
+    lbl_el_val = mk_label(panel, FBV, C_VAL, COL_W + CANVAS_W / 2, 18);
     lv_obj_set_width(lbl_el_val, CANVAS_W / 2);
     lv_obj_set_style_text_align(lbl_el_val, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -223,15 +263,45 @@ inline void build(lv_obj_t* panel) {
 
     // ── Right: next pass / geostationary ─────────────────────────────────────
     const int RX = CONTENT_W - COL_W + 8;
-    lbl_pass_hdr = mk_label(panel, FT, C_SEC, RX,  8);
+    lbl_pass_hdr = mk_label(panel, FT, C_SEC, CONTENT_W - COL_W, 8);
+    lv_obj_set_width(lbl_pass_hdr, COL_W);
+    lv_obj_set_style_text_align(lbl_pass_hdr, LV_TEXT_ALIGN_CENTER, 0);
     lbl_aos          = mk_label(panel, FT, C_GREEN, RX, 38);
     lbl_tca          = mk_label(panel, FT, C_GOLD,  RX, 64);
     lbl_los          = mk_label(panel, FT, C_RED,   RX, 90);
     lbl_duration     = mk_label(panel, FT, C_VAL,   RX, 116);
     lbl_max_el       = mk_label(panel, FT, C_VAL,   RX, 142);
     lbl_pass_az      = mk_label(panel, FT, C_VAL,   RX, 168);
-    lbl_countdown    = mk_label(panel, FT, C_GOLD,  RX, 194);
-    lbl_los_countdown= mk_label(panel, FT, C_RED,   RX, 220);
+    lbl_countdown = mk_label(panel, FT, C_GOLD, CONTENT_W - COL_W, 194);
+    lv_obj_set_width(lbl_countdown, COL_W);
+    lv_obj_set_style_text_align(lbl_countdown, LV_TEXT_ALIGN_CENTER, 0);
+
+    lbl_los_countdown = mk_label(panel, FT, C_RED, CONTENT_W - COL_W, 220);
+    lv_obj_set_width(lbl_los_countdown, COL_W);
+    lv_obj_set_style_text_align(lbl_los_countdown, LV_TEXT_ALIGN_CENTER, 0);
+
+    // ── Select Sat button (lower free space of right column) ─────────────────
+    const int BTN_X = CONTENT_W - COL_W + 20;
+    const int BTN_W = COL_W - 40;
+    lv_obj_t* sel_btn = lv_obj_create(panel);
+    lv_obj_set_size(sel_btn, BTN_W, 40);
+    lv_obj_set_pos(sel_btn, BTN_X, 315);
+    lv_obj_set_style_bg_color(sel_btn, lv_color_hex(C_HDR), 0);
+    lv_obj_set_style_bg_color(sel_btn, lv_color_hex(C_SEC), LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(sel_btn, lv_color_hex(C_SEC), 0);
+    lv_obj_set_style_border_width(sel_btn, 2, 0);
+    lv_obj_set_style_radius(sel_btn, 8, 0);
+    lv_obj_set_style_pad_all(sel_btn, 0, 0);
+    lv_obj_clear_flag(sel_btn, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(sel_btn, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(sel_btn, [](lv_event_t*) { if (onSelectSat) onSelectSat(); }, LV_EVENT_CLICKED, nullptr);
+
+    lv_obj_t* sel_lbl = lv_label_create(sel_btn);
+    lv_label_set_text(sel_lbl, "Select Sat");
+    lv_obj_set_style_text_font(sel_lbl, FT, 0);
+    lv_obj_set_style_text_color(sel_lbl, lv_color_hex(C_SEC), 0);
+    lv_obj_set_style_text_color(sel_lbl, lv_color_hex(C_BG), LV_STATE_PRESSED);
+    lv_obj_center(sel_lbl);
 }
 
 // ── Update (called every second) ─────────────────────────────────────────────
@@ -249,38 +319,38 @@ inline void update() {
 
     snprintf(buf, sizeof(buf), "%+.1f\xc2\xb0", s.elevation);
     lv_label_set_text(lbl_el_val, buf);
-    lv_obj_set_style_text_color(lbl_el_val, lv_color_hex(above ? C_GREEN : C_VAL), 0);
+    lv_obj_set_style_text_color(lbl_az_val, lv_color_hex(above ? C_GREEN : C_RED), 0);
+    lv_obj_set_style_text_color(lbl_el_val, lv_color_hex(above ? C_GREEN : C_RED), 0);
 
     // Left: telemetry
-    snprintf(buf, sizeof(buf), "LAT  %.2f %c", fabs(s.lat), s.lat >= 0 ? 'N' : 'S');
+    snprintf(buf, sizeof(buf), "%.2f %c", fabs(s.lat), s.lat >= 0 ? 'N' : 'S');
     lv_label_set_text(lbl_lat, buf);
 
-    snprintf(buf, sizeof(buf), "LON  %.2f %c", fabs(s.lon), s.lon >= 0 ? 'E' : 'W');
+    snprintf(buf, sizeof(buf), "%.2f %c", fabs(s.lon), s.lon >= 0 ? 'E' : 'W');
     lv_label_set_text(lbl_lon, buf);
 
     char loc[8]; _maidenhead(s.lat, s.lon, loc);
-    snprintf(buf, sizeof(buf), "LOC  %s", loc);
-    lv_label_set_text(lbl_loc, buf);
+    lv_label_set_text(lbl_loc, loc);
 
-    snprintf(buf, sizeof(buf), "ALT  %.0f km", s.alt);
+    snprintf(buf, sizeof(buf), "%.0f km", s.alt);
     lv_label_set_text(lbl_alt, buf);
 
-    snprintf(buf, sizeof(buf), "RNG  %.0f km", s.range);
+    snprintf(buf, sizeof(buf), "%.0f km", s.range);
     lv_label_set_text(lbl_range, buf);
 
-    snprintf(buf, sizeof(buf), "RRT  %+.2f km/s", s.rangeRate);
+    snprintf(buf, sizeof(buf), "%+.2f km/s", s.rangeRate);
     lv_label_set_text(lbl_range_rate, buf);
 
-    snprintf(buf, sizeof(buf), "ORBIT %lu", (unsigned long)s.orbitNumber);
+    snprintf(buf, sizeof(buf), "%lu", (unsigned long)s.orbitNumber);
     lv_label_set_text(lbl_orbit, buf);
 
-    snprintf(buf, sizeof(buf), "SPD  %.2f km/s", s.velocity);
+    snprintf(buf, sizeof(buf), "%.2f km/s", s.velocity);
     lv_label_set_text(lbl_velocity, buf);
 
-    snprintf(buf, sizeof(buf), "DLY  %.1f ms", s.signalDelay);
+    snprintf(buf, sizeof(buf), "%.1f ms", s.signalDelay);
     lv_label_set_text(lbl_delay, buf);
 
-    snprintf(buf, sizeof(buf), "DOP  %+.0f Hz", s.doppler100);
+    snprintf(buf, sizeof(buf), "%+.0f Hz", s.doppler100);
     lv_label_set_text(lbl_doppler, buf);
 
     // Polar: clear canvas for GEO (grid only), rebuild arc for LEO when pass changes

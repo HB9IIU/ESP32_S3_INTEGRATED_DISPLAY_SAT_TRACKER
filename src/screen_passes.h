@@ -28,7 +28,7 @@ static const int ROW_H = 45;
 static const int HDR_H = 40;   // (400 - 40) / 45 = 8 rows exactly
 
 //                         #    AOS   TCA   LOS  MaxEl  Dur   AZ
-static const int COLS[] = {  8,  30,  210,  310,  410,  510,  620 };
+static const int COLS[] = {  8,  30,  240,  340,  410,  510,  620 };
 
 inline void build(lv_obj_t* panel) {
     const lv_font_t* F14 = &lv_font_montserrat_14;
@@ -45,7 +45,12 @@ inline void build(lv_obj_t* panel) {
         lv_label_set_text(h, hdr_texts[c]);
         lv_obj_set_style_text_font(h, FT, 0);
         lv_obj_set_style_text_color(h, lv_color_hex(C_SEC), 0);
-        lv_obj_align(h, LV_ALIGN_LEFT_MID, COLS[c], 0);
+        if (c == 4)
+            lv_obj_align(h, LV_ALIGN_RIGHT_MID, -(CONTENT_W - COLS[5] + 30), 0);
+        else if (c == 3)
+            lv_obj_align(h, LV_ALIGN_LEFT_MID, COLS[c] + 11, 0);
+        else
+            lv_obj_align(h, LV_ALIGN_LEFT_MID, COLS[c], 0);
     }
 
     // ── Pass rows container ───────────────────────────────────────────────────
@@ -86,7 +91,7 @@ inline void build(lv_obj_t* panel) {
         lv_label_set_text(lbl_row_el[i], "--.-");
         lv_obj_set_style_text_font(lbl_row_el[i], FT, 0);
         lv_obj_set_style_text_color(lbl_row_el[i], lv_color_hex(C_GOLD), 0);
-        lv_obj_align(lbl_row_el[i], LV_ALIGN_LEFT_MID, COLS[4], 0);
+        lv_obj_align(lbl_row_el[i], LV_ALIGN_RIGHT_MID, -(CONTENT_W - COLS[5] + 30), 0);
 
         lbl_row_dur[i] = lv_label_create(row);
         lv_label_set_text(lbl_row_dur[i], "--m --s");
@@ -198,7 +203,7 @@ inline void update() {
             snprintf(buf, sizeof(buf), "%dm %02ds", dur / 60, dur % 60);
             lv_label_set_text(lbl_row_dur[i], buf);
 
-            snprintf(buf, sizeof(buf), "%.0f\xc2\xb0 \xe2\x86\x92 %.0f\xc2\xb0", p.azStart, p.azStop);
+            snprintf(buf, sizeof(buf), "%3.0f\xc2\xb0 \xe2\x86\x92 %3.0f\xc2\xb0", p.azStart, p.azStop);
             lv_label_set_text(lbl_row_az[i], buf);
 
             bool active = (now >= p.start && now <= p.stop);

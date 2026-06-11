@@ -128,6 +128,7 @@ inline void build(lv_obj_t* scr) {
     uint32_t t0 = millis();
     ScreenTracker::build(panels[TRACKER]);
     Serial.printf("[perf] Screen build TRACKER           %lu ms\n", millis() - t0);
+    ScreenTracker::onSelectSat = []() { ScreenSelector::open(); };
 
     t0 = millis();
     ScreenPolar::build(panels[POLAR]);

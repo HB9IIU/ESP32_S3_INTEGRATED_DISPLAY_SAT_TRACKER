@@ -83,7 +83,7 @@
 /* Enable with 1, disable with 0. Disabled fonts save flash space.
    To use a font in code: &lv_font_montserrat_XX (must be enabled here first) */
 #define LV_FONT_MONTSERRAT_8  0
-#define LV_FONT_MONTSERRAT_10 0
+#define LV_FONT_MONTSERRAT_10 1
 #define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1   /* ← DEFAULT — always keep this enabled */
 #define LV_FONT_MONTSERRAT_16 1

@@ -17,8 +17,9 @@
 #define C_VAL   0xE8E8E8
 #define C_DIM   0x888888
 #define C_CYAN  0x00D4FF
-#define C_GREEN 0x00E676
-#define C_RED   0xFF6644
+#define C_GREEN    0x00E676
+#define C_RED      0xFF6644
+#define C_BORDEAUX 0xAA2244
 #define C_GOLD  0xFFD700
 #define C_DIV   0x30363D
 

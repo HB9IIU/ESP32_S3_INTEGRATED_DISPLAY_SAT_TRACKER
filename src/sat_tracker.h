@@ -198,7 +198,7 @@ inline void update() {
 
     // Request recompute when the soonest pass has ended — runs in loop(), not here
     if (!state.isGeo &&
-        (passCount == 0 || (passes[0].valid && time(nullptr) > passes[0].stop + 60)))
+        (passCount == 0 || (passes[0].valid && time(nullptr) > passes[0].stop + 15)))
         _passComputeNeeded = true;
     state.pass = passCount > 0 ? passes[0] : PassInfo{};
 }
