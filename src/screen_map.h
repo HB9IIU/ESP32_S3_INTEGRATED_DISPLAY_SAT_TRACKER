@@ -218,9 +218,12 @@ inline void build(lv_obj_t* panel) {
     _qth_valid = loc.valid; _qth_lat = loc.lat; _qth_lon = loc.lon;
 }
 
-// ── Update (every second) ─────────────────────────────────────────────────────
+// ── Update (heavy repaint throttled to every 5 s) ─────────────────────────────
 inline void update() {
     if (!_cbuf || !_map_orig || !_canvas) return;
+    static int _tick = 0;
+    if (++_tick < 5) return;
+    _tick = 0;
     const SatTracker::State& s = SatTracker::getState();
 
     // 1. Per-pixel pass: terminator + footprint shading → writes _map_orig to _cbuf

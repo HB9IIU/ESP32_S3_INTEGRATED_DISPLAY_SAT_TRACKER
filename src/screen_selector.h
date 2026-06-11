@@ -128,10 +128,10 @@ inline void build(lv_obj_t* scr) {
     lv_obj_set_style_pad_left(_list, 20, LV_PART_ITEMS);
 
     lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
+    _populateList();
 }
 
 inline void open() {
-    _populateList();
     if (_overlay) lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
 }
 

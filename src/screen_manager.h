@@ -14,17 +14,18 @@
 #include "screen_setup.h"
 
 LV_FONT_DECLARE(JetBrainsMono_Regular_20);
+LV_FONT_DECLARE(JetBrainsMono_Bold_28);
 
 namespace ScreenManager {
 
 enum ID { TRACKER = 0, POLAR, ELEV, MAP, PASSES, SETUP, COUNT };
 
-static const char* LABELS[COUNT] = { "TRACK", "POLAR", "ELEV", "MAP", "PASSES", "SETUP" };
+static const char* LABELS[COUNT] = { "TRACK", "SKY", "ELEV", "MAP", "PASSES", "SETUP" };
 
 static lv_obj_t* panels[COUNT];
 static lv_obj_t* nav_btns[COUNT];
 static lv_obj_t* lbl_sat_name;
-static lv_obj_t* lbl_status;
+static lv_obj_t* lbl_utc;
 static lv_obj_t* lbl_clock;
 static ID        current = TRACKER;
 
@@ -59,13 +60,9 @@ static void nav_btn_cb(lv_event_t* e) {
 static void timer_cb(lv_timer_t*) {
     SatTracker::update();
 
-    // ── Persistent header: always reflects current satellite ──────────────────
+    // ── Persistent header: satellite name ────────────────────────────────────
     const SatTracker::State& s = SatTracker::getState();
     lv_label_set_text(lbl_sat_name, s.name);
-    bool above = (s.elevation > 0.0);
-    lv_label_set_text(lbl_status, above ? "ABOVE HORIZON" : "BELOW HORIZON");
-    lv_obj_set_style_text_color(lbl_status,
-        lv_color_hex(above ? C_GREEN : C_RED), 0);
 
     // ── Active screen update ──────────────────────────────────────────────────
     switch (current) {
@@ -78,13 +75,16 @@ static void timer_cb(lv_timer_t*) {
         default: break;
     }
 
-    // ── Nav bar clock ─────────────────────────────────────────────────────────
+    // ── Header clocks ─────────────────────────────────────────────────────────
     struct tm ti{};
     time_t now = time(nullptr);
+    char buf[20];
     localtime_r(&now, &ti);
-    char buf[12];
-    strftime(buf, sizeof(buf), "%H:%M:%S", &ti);
+    strftime(buf, sizeof(buf), "LOC %H:%M:%S", &ti);
     lv_label_set_text(lbl_clock, buf);
+    gmtime_r(&now, &ti);
+    strftime(buf, sizeof(buf), "UTC %H:%M:%S", &ti);
+    lv_label_set_text(lbl_utc, buf);
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -99,24 +99,24 @@ inline void build(lv_obj_t* scr) {
     lv_obj_t* hdr = mk_panel(scr, 0, 0, 800, HEADER_H, C_HDR);
 
     lbl_clock = lv_label_create(hdr);
-    lv_label_set_text(lbl_clock, "--:--:--");
+    lv_label_set_text(lbl_clock, "LOC --:--:--");
     lv_obj_set_style_text_font(lbl_clock, &JetBrainsMono_Regular_20, 0);
     lv_obj_set_style_text_color(lbl_clock, lv_color_hex(C_GOLD), 0);
     lv_obj_align(lbl_clock, LV_ALIGN_LEFT_MID, 20, 0);
 
     lbl_sat_name = lv_label_create(hdr);
     lv_label_set_text(lbl_sat_name, "Loading...");
-    lv_obj_set_style_text_font(lbl_sat_name, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(lbl_sat_name, &JetBrainsMono_Bold_28, 0);
     lv_obj_set_style_text_color(lbl_sat_name, lv_color_hex(C_CYAN), 0);
     lv_obj_align(lbl_sat_name, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(lbl_sat_name, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(lbl_sat_name, sat_name_cb, LV_EVENT_CLICKED, nullptr);
 
-    lbl_status = lv_label_create(hdr);
-    lv_label_set_text(lbl_status, "BELOW HORIZON");
-    lv_obj_set_style_text_font(lbl_status, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_status, lv_color_hex(C_RED), 0);
-    lv_obj_align(lbl_status, LV_ALIGN_RIGHT_MID, -20, 0);
+    lbl_utc = lv_label_create(hdr);
+    lv_label_set_text(lbl_utc, "UTC --:--:--");
+    lv_obj_set_style_text_font(lbl_utc, &JetBrainsMono_Regular_20, 0);
+    lv_obj_set_style_text_color(lbl_utc, lv_color_hex(C_SEC), 0);
+    lv_obj_align(lbl_utc, LV_ALIGN_RIGHT_MID, -20, 0);
 
     // ── Content panels (y = CONTENT_Y .. NAV_Y) ───────────────────────────────
     for (int i = 0; i < COUNT; i++) {
@@ -130,6 +130,7 @@ inline void build(lv_obj_t* scr) {
 
     t0 = millis();
     ScreenPolar::build(panels[POLAR]);
+    ScreenPolar::onSatSelected = []() { switchTo(TRACKER); };
     Serial.printf("[perf] Screen build POLAR             %lu ms\n", millis() - t0);
 
     t0 = millis();

@@ -291,13 +291,13 @@ inline void build(lv_obj_t* panel) {
     const int RX = 402;
     mk_label(panel, &lv_font_montserrat_14, C_SEC, RX + 14, 10, "ADD SATELLITE");
 
-    // NORAD ID display field (always active, not selectable)
-    _field(panel, RX + 12, 35, 374, "NORAD ID", nullptr, 0, &_norad_val);
+    // NORAD ID display field — aligned with LON field on the left (y=85)
+    _field(panel, RX + 12, 85, 374, "NORAD ID", nullptr, 0, &_norad_val);
     lv_label_set_text(_norad_val, "------");
 
     // NORAD numpad: 3 cols × 4 rows, centered in 398 px
     // Width = 3×86 + 2×5 = 268 px  →  margin = (398-268)/2 = 65 px
-    const int NKX0 = RX + 65, NKY0 = 93;
+    const int NKX0 = RX + 65, NKY0 = 143;
     struct { const char* lbl; intptr_t key; } nk[12] = {
         {"7",'7'}, {"8",'8'}, {"9",'9'},
         {"4",'4'}, {"5",'5'}, {"6",'6'},
@@ -311,7 +311,7 @@ inline void build(lv_obj_t* panel) {
 
     // FETCH & TRACK button
     lv_obj_t* fb = lv_btn_create(panel);
-    lv_obj_set_pos(fb, RX + 12, 271);
+    lv_obj_set_pos(fb, RX + 12, 321);
     lv_obj_set_size(fb, 374, 42);
     lv_obj_set_style_bg_color(fb, lv_color_hex(0x255825), 0);
     lv_obj_set_style_bg_color(fb, lv_color_hex(0x336B33), LV_STATE_PRESSED);
@@ -324,7 +324,7 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(fl, &lv_font_montserrat_16, 0);
     lv_obj_center(fl);
 
-    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 322, "");
+    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 372, "");
 }
 
 inline void update() {}

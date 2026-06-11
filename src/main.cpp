@@ -26,6 +26,7 @@ static void show_splash() {
     Serial.printf("[splash] drawJpgFile: %s\n", ok ? "OK" : "FAILED");
 }
 
+
 void setup() {
     uint32_t t_setup0 = millis();
     Serial.begin(115200);
@@ -53,9 +54,12 @@ void setup() {
     Serial.printf("[perf] LVGL init + driver setup       %lu ms\n", millis() - t_lv0);
 
     uint32_t satId = NVSConfig::loadSelectedSat(DEFAULT_SAT_ID);
+    BootManager::drawStatus("Computing orbits...   Please wait...", 0x4A9ECC);
     uint32_t t_sat0 = millis();
     SatTracker::begin(satId);
     Serial.printf("[perf] SatTracker::begin()            %lu ms\n", millis() - t_sat0);
+    SatTracker::startSkyTask();
+    BootManager::drawStatus("Building interface...   Please wait...", 0x4A9ECC);
 
     uint32_t t_ui0 = millis();
     ScreenManager::build(lv_scr_act());
@@ -67,6 +71,6 @@ void setup() {
 
 void loop() {
     lv_timer_handler();
-    SatTracker::runPassCompute();   // heavy SGP4 search runs here, not inside LVGL timer
+    SatTracker::runPassCompute();   // next-pass search, runs outside LVGL timer
     delay(5);
 }
