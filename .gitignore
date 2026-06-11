@@ -28,6 +28,9 @@ Icon?
 # --- Misc ---
 *.log
 
+# --- Local docs (not pushed to repo) ---
+Doc/
+
 # --- PythonVenv local-only files ---
 PythonVenv/.idea/
 PythonVenv/.venv/
