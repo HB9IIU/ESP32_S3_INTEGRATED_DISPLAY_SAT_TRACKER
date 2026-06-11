@@ -24,6 +24,12 @@ static void show_splash() {
     }
     bool ok = tft.drawJpgFile(LittleFS, "/splash.jpg", 0, 0, 800, 480);
     Serial.printf("[splash] drawJpgFile: %s\n", ok ? "OK" : "FAILED");
+    if (ok) {
+        tft.setTextDatum(lgfx::datum_t::bottom_right);
+        tft.setFont(&fonts::DejaVu18);
+        tft.setTextColor(0xCCCCCC);
+        tft.drawString("v" FIRMWARE_VERSION, 790, 472);
+    }
 }
 
 
