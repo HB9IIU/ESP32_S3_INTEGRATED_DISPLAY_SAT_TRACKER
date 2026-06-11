@@ -249,11 +249,11 @@ inline void build(lv_obj_t* panel) {
     brd.border_width = 1; brd.radius = 0;
     lv_canvas_draw_rect(_canvas, 0, 0, CW, CH, &brd);
 
-    // ── Gold cursor dot (repositioned + blinked every second in update) ─────────
+    // ── Cyan cursor dot (repositioned + blinked every second in update) ─────────
     _cursor = lv_obj_create(panel);
     lv_obj_set_size(_cursor, 10, 10);
     lv_obj_set_style_radius(_cursor, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(_cursor, lv_color_hex(C_GOLD), 0);
+    lv_obj_set_style_bg_color(_cursor, lv_color_hex(C_CYAN), 0);
     lv_obj_set_style_bg_opa(_cursor, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(_cursor, 0, 0);
     lv_obj_set_style_pad_all(_cursor, 0, 0);
