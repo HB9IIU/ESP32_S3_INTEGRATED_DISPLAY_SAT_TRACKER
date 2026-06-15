@@ -1,0 +1,16 @@
+# Custom 16 MB partition table
+# app0/app1: 4 MB each (firmware is ~2 MB; 4 MB leaves room for growth)
+# littlefs:  ~7.9 MB  (tiles 3.2 MB + other assets 1.5 MB + spare)
+# coredump:  64 KB    (kept at flash end)
+#
+# Offsets verified: 0x10000 + 0x400000 + 0x400000 = 0x810000
+#                   0x810000 + 0x7E0000 = 0xFF0000
+#                   0xFF0000 + 0x10000  = 0x1000000 (16 MB) ✓
+#
+# Name,     Type, SubType,  Offset,   Size,    Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xe000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x400000,
+app1,       app,  ota_1,    0x410000, 0x400000,
+littlefs,   data, spiffs,   0x810000, 0x7E0000,
+coredump,   data, coredump, 0xFF0000, 0x10000,

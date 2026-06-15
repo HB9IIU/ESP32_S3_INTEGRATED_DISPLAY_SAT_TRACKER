@@ -1,0 +1,16 @@
+{
+  "name": "ESP32-S3 SAT Tracker",
+  "version": "%%VERSION%%",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "firmware/bootloader.bin",  "offset": 0       },
+        { "path": "firmware/partitions.bin",  "offset": 32768   },
+        { "path": "firmware/firmware.bin",    "offset": 65536   },
+        { "path": "firmware/littlefs.bin",    "offset": 8454144 }
+      ]
+    }
+  ]
+}

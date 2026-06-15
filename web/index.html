@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32-S3 SAT Tracker — Flash Firmware</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --accent:  #58a6ff;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --green:   #3fb950;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 860px;
+      margin: 60px auto;
+      padding: 0 20px 60px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    .callsign {
+      display: inline-block;
+      background: #388bfd26;
+      color: var(--accent);
+      border: 1px solid #388bfd55;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.8rem;
+      margin-bottom: 0.9rem;
+      letter-spacing: 0.1em;
+    }
+
+    h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      margin-bottom: 0.3rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+
+    /* ── Board image ─────────────────────────────────────────────────────────── */
+    .board-img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: block;
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── Install block ───────────────────────────────────────────────────────── */
+    .install-block {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.75rem;
+    }
+
+    esp-web-install-button { display: block; }
+
+    .specs {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 1rem;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    .specs .label { color: var(--muted); white-space: nowrap; }
+    .specs .value { color: var(--text); }
+    .specs .value a { color: var(--accent); text-decoration: none; }
+    .specs .value a:hover { text-decoration: underline; }
+
+    .note {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .note strong { color: var(--text); }
+    .note a { color: var(--accent); text-decoration: none; }
+    .note a:hover { text-decoration: underline; }
+
+    /* ── Section headings ────────────────────────────────────────────────────── */
+    h2 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Screenshot gallery ──────────────────────────────────────────────────── */
+    .screenshots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .screenshot-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .screenshot-item img {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: block;
+      cursor: zoom-in;
+      transition: opacity 0.15s, border-color 0.15s;
+    }
+    .screenshot-item img:hover {
+      opacity: 0.85;
+      border-color: var(--accent);
+    }
+
+    .screenshot-item figcaption {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* Center a lone last item when the gallery has an odd count */
+    .screenshot-item:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+      max-width: 50%;
+      margin: 0 auto;
+    }
+
+    /* ── Lightbox ────────────────────────────────────────────────────────────── */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      cursor: zoom-out;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img {
+      max-width: 95vw;
+      max-height: 90vh;
+      border-radius: 8px;
+      box-shadow: 0 12px 60px rgba(0, 0, 0, 0.8);
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────────────── */
+    .footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+    .footer a:hover { color: var(--text); }
+
+    @media (max-width: 560px) {
+      .screenshots { grid-template-columns: 1fr; }
+      .footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ────────────────────────────────────────────────────────────── -->
+  <span class="callsign">HB9IIU</span>
+  <h1>ESP32-S3 SAT Tracker</h1>
+  <p class="subtitle">
+    Real-time satellite tracker &amp; pass predictor<br>
+    for the Waveshare ESP32-S3-Touch-LCD-7
+  </p>
+  <p class="meta">Version %%VERSION%% &mdash; built %%BUILD_DATE%%</p>
+
+  <!-- ── Board photo ───────────────────────────────────────────────────────── -->
+  <!-- Add web/board.png (or board.jpg) to make this visible -->
+  <img src="board.png" alt="SAT Tracker running on Waveshare ESP32-S3-Touch-LCD-7"
+       class="board-img"
+       onerror="this.style.display='none'" />
+
+  <!-- ── Install ───────────────────────────────────────────────────────────── -->
+  <div class="install-block">
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+
+    <div class="specs">
+      <span class="label">Board</span>    <span class="value">
+        <a href="https://docs.waveshare.com/ESP32-S3-Touch-LCD-7" target="_blank" rel="noopener">Waveshare ESP32-S3-Touch-LCD-7</a>
+        &nbsp;·&nbsp;
+        <a href="https://docs.waveshare.com/ESP32-S3-Touch-LCD-5?variant=ESP32-S3-LCD-5-touch" target="_blank" rel="noopener">ESP32-S3-Touch-LCD-5</a>
+      </span>
+      <span class="label">Display</span>  <span class="value">800 × 480 RGB parallel · capacitive touch</span>
+      <span class="label">Flash</span>    <span class="value">16 MB · 8 MB OPI PSRAM</span>
+      <span class="label">Installs</span> <span class="value">Firmware + world map &amp; splash assets (~9.5 MB)</span>
+    </div>
+
+    <p class="note">
+      Requires <strong>Chrome</strong> or <strong>Edge</strong> (Web Serial API) — Firefox is not supported.<br>
+      Connect the device via USB before clicking <em>Install</em>.
+    </p>
+  </div>
+
+  <!-- ── Screenshots ───────────────────────────────────────────────────────── -->
+  <h2>Screenshots</h2>
+  <div class="screenshots">
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/TRACK.png"
+           alt="TRACK page — real-time position, Doppler, RF metrics"
+           onclick="openLightbox(this.src)" />
+      <figcaption>TRACK — real-time position &amp; RF</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/SKY.png"
+           alt="SKY page — satellite sky view polar plot"
+           onclick="openLightbox(this.src)" />
+      <figcaption>SKY — polar sky view</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/ELEV.png"
+           alt="ELEV page — elevation profile for current pass"
+           onclick="openLightbox(this.src)" />
+      <figcaption>ELEV — elevation profile</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/MAP-all.png"
+           alt="MAP page — world map with all satellite ground tracks"
+           onclick="openLightbox(this.src)" />
+      <figcaption>MAP — all-satellites world map</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/MAP-single.png"
+           alt="MAP page — single satellite ground track"
+           onclick="openLightbox(this.src)" />
+      <figcaption>MAP — single satellite ground track</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/PASSES.png"
+           alt="PASSES page — upcoming pass predictions"
+           onclick="openLightbox(this.src)" />
+      <figcaption>PASSES — upcoming pass predictions</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/SETUP.png"
+           alt="SETUP page — location and satellite configuration"
+           onclick="openLightbox(this.src)" />
+      <figcaption>SETUP — location &amp; satellite config</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/SELECT.png"
+           alt="Satellite selector overlay — grouped catalogue picker"
+           onclick="openLightbox(this.src)" />
+      <figcaption>SELECT — satellite catalogue picker</figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ── Lightbox ──────────────────────────────────────────────────────────── -->
+  <div id="lightbox" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" alt="" />
+  </div>
+
+  <!-- ── Footer ────────────────────────────────────────────────────────────── -->
+  <div class="footer">
+    <span>
+      Source:
+      <a href="https://github.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER" target="_blank">
+        HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER
+      </a>
+    </span>
+  </div>
+
+  <script>
+    function openLightbox(src) {
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox').classList.add('open');
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('open');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeLightbox();
+    });
+  </script>
+
+</body>
+</html>
