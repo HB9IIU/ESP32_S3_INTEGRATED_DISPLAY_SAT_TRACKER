@@ -120,7 +120,6 @@ The satellite name in the header opens a grouped selector overlay; tap any entry
 ```
 ├── platformio.ini          PlatformIO environments and build flags
 ├── partitions.csv          Flash partition table
-├── gen_font.py             TTF → LVGL font generator
 ├── get_version.py          Pre-build script — stamps firmware version from git tags
 ├── data/                   LittleFS assets (splash.jpg, worldmap.jpg)
 ├── Doc/Screenshots/        Screen captures (PNG)
@@ -172,10 +171,6 @@ pio run -e DISPLAY -t uploadfs
 
 # Serial monitor
 pio device monitor -b 115200
-
-# Font showcase (build / flash)
-pio run -e FONT_TEST
-pio run -e FONT_TEST -t upload
 ```
 
 ---
@@ -206,23 +201,6 @@ Runtime changes (no recompile needed) via the SETUP screen:
 
 - Observer latitude and longitude
 - Active tracked satellite by NORAD ID
-
----
-
-## Font Generation
-
-JetBrains Mono LVGL fonts are pre-generated in `src/fonts/`. To regenerate or add sizes:
-
-```bash
-# Install the font converter once
-npm install -g lv_font_conv
-
-# Regenerate all configured sizes
-python3 gen_font.py
-
-# Generate a custom size
-python3 gen_font.py --font fonts/JetBrainsMono-Bold.ttf --sizes 20 24 28
-```
 
 ---
 
