@@ -10,6 +10,7 @@
 #include "screen_elev.h"
 #include "screen_map.h"
 #include "screen_passes.h"
+#include "screen_iss.h"
 #include "screen_selector.h"
 #include "screen_setup.h"
 
@@ -18,9 +19,11 @@ LV_FONT_DECLARE(JetBrainsMono_Bold_28);
 
 namespace ScreenManager {
 
-enum ID { TRACKER = 0, POLAR, ELEV, MAP, PASSES, SETUP, COUNT };
+enum ID { TRACKER = 0, POLAR, ELEV, MAP, PASSES, ISS, SETUP, COUNT };
 
-static const char* LABELS[COUNT] = { "TRACK", "SKY", "ELEV", "MAP", "PASSES", "SETUP" };
+static const char* LABELS[COUNT] = {
+    "TRACK", "SKY", "ELEV", "MAP", "PASSES", LV_SYMBOL_EYE_OPEN " ISS", "SETUP"
+};
 
 static lv_obj_t* panels[COUNT];
 static lv_obj_t* nav_btns[COUNT];
@@ -63,7 +66,7 @@ static void timer_cb(lv_timer_t*) {
 
     // ── Persistent header: satellite name ────────────────────────────────────
     const SatTracker::State& s = SatTracker::getState();
-    lv_label_set_text(lbl_sat_name, s.name);
+    lv_label_set_text(lbl_sat_name, current == ISS ? "ISS SIGHTINGS" : s.name);
 
     // ── Active screen update ──────────────────────────────────────────────────
     switch (current) {
@@ -72,6 +75,7 @@ static void timer_cb(lv_timer_t*) {
         case ELEV:    ScreenElev::update();    break;
         case MAP:     ScreenMap::update();     break;
         case PASSES:  ScreenPasses::update();  break;
+        case ISS:     ScreenISS::update();     break;
         case SETUP:   ScreenSetup::update();   break;
         default: break;
     }
@@ -147,6 +151,10 @@ inline void build(lv_obj_t* scr) {
     t0 = millis();
     ScreenPasses::build(panels[PASSES]);
     Serial.printf("[perf] Screen build PASSES            %lu ms\n", millis() - t0);
+
+    t0 = millis();
+    ScreenISS::build(panels[ISS]);
+    Serial.printf("[perf] Screen build ISS               %lu ms\n", millis() - t0);
 
     t0 = millis();
     ScreenSetup::build(panels[SETUP]);

@@ -36,6 +36,18 @@ struct PassInfo {
     double azStop  = 0;   // degrees
 };
 
+struct IssSighting {
+    bool   valid   = false;
+    time_t start   = 0;
+    time_t stop    = 0;
+    time_t maxTime = 0;
+    double maxEl   = 0;
+    double azStart = 0;
+    double elStart = 0;
+    double azStop  = 0;
+    double elStop  = 0;
+};
+
 struct State {
     char     name[32] = {};
     uint32_t noradId  = 0;
@@ -57,12 +69,18 @@ struct State {
 
 static const int MAX_PASSES = 8;
 static const int MAX_SKY    = 16;
+static const int MAX_ISS_SIGHTINGS = 8;
 
 static Sgp4    sgp4;
 static Sgp4    _skySgp4;
+static Sgp4    _issSgp4;
 static State   state;
 static PassInfo passes[MAX_PASSES];
 static int      passCount = 0;
+static IssSighting issSightings[MAX_ISS_SIGHTINGS];
+static int      issSightingCount = 0;
+static time_t   _issSightingsComputedAt = 0;
+static bool     _issLoaded = false;
 static long     _revnumAtEpoch = 0;
 static double   _prevRange     = 0.0;
 static time_t   _prevRangeTime = 0;
@@ -78,6 +96,109 @@ static time_t jdToUnix(double jd) {
 }
 
 static bool _passComputeNeeded = false;
+
+static bool _initIssPredictor() {
+    if (_issLoaded) {
+        NVSConfig::LocationData loc = NVSConfig::loadLocation();
+        if (loc.valid) _issSgp4.site(loc.lat, loc.lon, 0.0);
+        return true;
+    }
+
+    char name[30], l1[70], l2[70];
+    if (!TLEManager::loadTLE(25544, name, l1, l2)) {
+        Serial.println("[iss] TLE not found for ISS (25544)");
+        return false;
+    }
+    if (!_issSgp4.init(name, l1, l2)) {
+        Serial.println("[iss] SGP4 init failed for ISS");
+        return false;
+    }
+
+    // NASA-style visible opportunities happen near twilight: sky dark enough,
+    // station still sunlit. Civil twilight is a useful first threshold.
+    _issSgp4.setsunrise(-6.0);
+
+    NVSConfig::LocationData loc = NVSConfig::loadLocation();
+    if (loc.valid) _issSgp4.site(loc.lat, loc.lon, 0.0);
+    _issLoaded = true;
+    return true;
+}
+
+static bool _issVisibleSample(time_t t, double& el, double& az) {
+    _issSgp4.findsat((unsigned long)t);
+    el = _issSgp4.satEl;
+    az = _issSgp4.satAz;
+    return (_issSgp4.satVis >= 1000 && el >= 10.0);
+}
+
+static void computeIssSightings() {
+    issSightingCount = 0;
+    memset(issSightings, 0, sizeof(issSightings));
+    if (!_initIssPredictor()) return;
+
+    uint32_t t0 = millis();
+    passinfo pd;
+    time_t now = time(nullptr);
+    time_t searchFrom = now;
+
+    _issSgp4.findsat((unsigned long)now);
+    if (_issSgp4.satEl > 0.0) {
+        for (int step = 1; step <= 36; step++) {   // up to 3 h back
+            time_t t = now - (time_t)step * 300;
+            _issSgp4.findsat((unsigned long)t);
+            if (_issSgp4.satEl <= 0.0) { searchFrom = t; break; }
+        }
+    }
+
+    if (!_issSgp4.initpredpoint((unsigned long)searchFrom, 0.0)) {
+        Serial.println("[iss] pass search initialization failed");
+        return;
+    }
+
+    for (int attempt = 0; attempt < 48 && issSightingCount < MAX_ISS_SIGHTINGS; attempt++) {
+        if (!_issSgp4.nextpass(&pd, 20)) break;
+
+        time_t passStart = jdToUnix(pd.jdstart);
+        time_t passStop  = jdToUnix(pd.jdstop);
+        IssSighting sight;
+        double firstEl = 0.0, firstAz = 0.0, lastEl = 0.0, lastAz = 0.0;
+
+        for (time_t t = passStart; t <= passStop; t += 15) {
+            double el = 0.0, az = 0.0;
+            if (!_issVisibleSample(t, el, az)) continue;
+
+            if (!sight.valid) {
+                sight.valid = true;
+                sight.start = t;
+                firstEl = el;
+                firstAz = az;
+            }
+            sight.stop = t;
+            lastEl = el;
+            lastAz = az;
+            if (el > sight.maxEl) {
+                sight.maxEl = el;
+                sight.maxTime = t;
+            }
+        }
+
+        if (sight.valid) {
+            if (sight.stop <= sight.start)
+                sight.stop = sight.start + 30;
+            sight.azStart = firstAz;
+            sight.elStart = firstEl;
+            sight.azStop  = lastAz;
+            sight.elStop  = lastEl;
+            issSightings[issSightingCount++] = sight;
+        }
+
+        _issSgp4.setpredpoint(pd.jdstop + 5.0 / 1440.0);
+    }
+
+    _issSightingsComputedAt = now;
+    Serial.printf("[iss] %d naked-eye sightings computed in %lu ms\n",
+                  issSightingCount, millis() - t0);
+}
 
 static void computeNextPasses() {
     passCount = 0;
@@ -234,6 +355,16 @@ inline LatLon latLonAt(time_t t) {
 inline const PassInfo* getPasses(int& count) {
     count = passCount;
     return passes;
+}
+
+inline const IssSighting* getIssSightings(int& count) {
+    time_t now = time(nullptr);
+    bool stale = (_issSightingsComputedAt == 0 ||
+                  now - _issSightingsComputedAt > 1800 ||
+                  (issSightingCount > 0 && now > issSightings[0].stop + 60));
+    if (stale) computeIssSightings();
+    count = issSightingCount;
+    return issSightings;
 }
 
 inline const SkyEntry* getSkyEntries(int& count) {

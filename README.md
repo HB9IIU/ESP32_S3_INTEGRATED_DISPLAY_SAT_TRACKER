@@ -2,7 +2,7 @@
 
 > Touch-driven satellite tracking firmware for the Waveshare ESP32-S3 integrated display boards.
 
-This project turns an 800×480 touchscreen into a self-contained tracking console for amateur, weather, CubeSat, and geostationary satellites — handling Wi-Fi onboarding, automatic geolocation, NTP time sync, TLE download and caching, SGP4 orbit propagation, and a six-screen LVGL interface optimised for capacitive touch.
+This project turns an 800×480 touchscreen into a self-contained tracking console for amateur, weather, CubeSat, ISS, and geostationary satellites — handling Wi-Fi onboarding, automatic geolocation, NTP time sync, TLE download and caching, SGP4 orbit propagation, and a seven-screen LVGL interface optimised for capacitive touch.
 
 ---
 
@@ -37,13 +37,17 @@ Both boards share the same ESP32-S3 SoC, 800×480 RGB parallel display, GT911 ca
 |------|--------|
 | ![ELEV](Doc/Screenshots/ELEV.png) | ![PASSES](Doc/Screenshots/PASSES.png) |
 
+| ISS SIGHTINGS | SETUP |
+|---------------|-------|
+| ![ISS SIGHTINGS](Doc/Screenshots/ISS-SIGHTINGS.png) | ![SETUP](Doc/Screenshots/SETUP.png) |
+
 | MAP — Single Satellite | MAP — All Satellites |
 |------------------------|----------------------|
 | ![MAP single](Doc/Screenshots/MAP-single.png) | ![MAP all](Doc/Screenshots/MAP-all.png) |
 
-| SETUP | SELECT |
-|-------|--------|
-| ![SETUP](Doc/Screenshots/SETUP.png) | ![SELECT](Doc/Screenshots/SELECT.png) |
+| SELECT |
+|--------|
+| ![SELECT](Doc/Screenshots/SELECT.png) |
 
 ---
 
@@ -57,6 +61,7 @@ Both boards share the same ESP32-S3 SoC, 800×480 RGB parallel display, GT911 ca
 
 - **Real-time telemetry** — azimuth, elevation, latitude, longitude, altitude, range, range rate, velocity, Doppler shift, and signal delay
 - **Pass prediction** — next eight upcoming passes with AOS, TCA, LOS, max elevation, duration, and azimuth trend
+- **ISS Sightings** — NASA-style naked-eye ISS viewing opportunities using local time, sky darkness, station illumination, max height, and appear/disappear directions
 - **Sky view** — live list of satellites currently above the horizon; tap any row to start tracking
 - **Elevation profile** — time-vs-elevation curve for the active pass with AOS/TCA/LOS markers
 - **World map** — satellite position, ground track, footprint, observer marker, and day/night terminator
@@ -105,7 +110,7 @@ The satellite name in the header opens a grouped selector overlay; tap any entry
 | `src/wifi_page.h` | On-screen Wi-Fi credential entry (network scan, touch keyboard, NVS save) |
 | `src/nvs_config.h` | Persistent storage — Wi-Fi, AP hints, location, timezone cache, selected satellite |
 | `src/tle_manager.h` | TLE fetch, parse, store, freshness checks, LittleFS file access |
-| `src/sat_tracker.h` | SGP4 state, live orbital calculations, pass prediction, background sky scan |
+| `src/sat_tracker.h` | SGP4 state, live orbital calculations, pass prediction, ISS sightings, background sky scan |
 | `src/screen_manager.h` | Header, navigation bar, screen switching, periodic UI updates |
 
 ### Screens
@@ -117,6 +122,7 @@ The satellite name in the header opens a grouped selector overlay; tap any entry
 | `ELEV` | Elevation-vs-time profile for the current pass |
 | `MAP` | World map with position, ground track, footprint, terminator — single-sat or all-sats view |
 | `PASSES` | Next eight passes or GEO summary for geostationary satellites |
+| `ISS` | Naked-eye ISS sighting opportunities with visible duration, max height, and appear/disappear directions |
 | `SETUP` | Observer location entry and direct NORAD fetch-and-track |
 
 ---
@@ -144,6 +150,7 @@ The satellite name in the header opens a grouped selector overlay; tap any entry
 │   ├── screen_elev.h       ELEV screen
 │   ├── screen_map.h        MAP screen
 │   ├── screen_passes.h     PASSES screen
+│   ├── screen_iss.h        ISS SIGHTINGS screen
 │   ├── screen_setup.h      SETUP screen
 │   ├── screen_selector.h   Satellite selector overlay
 │   ├── lv_driver.h         LVGL display flush and touch callbacks
