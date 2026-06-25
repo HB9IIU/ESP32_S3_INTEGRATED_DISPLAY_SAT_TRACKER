@@ -135,7 +135,7 @@ static void _buildProfile(const SatTracker::PassInfo& pass) {
 
     _circ(ax, ay, lv_color_hex(C_GREEN), 5);
     _circ(lx, ly, lv_color_hex(C_RED),   5);
-    _circ(tx, ty, lv_color_hex(C_GOLD),  6);
+    _circ(tx, ty, lv_color_hex(C_GOLD),  5);
 
     _profilePassStart = pass.start;
 }

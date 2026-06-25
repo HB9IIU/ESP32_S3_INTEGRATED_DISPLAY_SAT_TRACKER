@@ -107,7 +107,7 @@ inline void build(lv_obj_t* scr) {
     lv_label_set_text(lbl_clock, "LOC --:--:--");
     lv_obj_set_style_text_font(lbl_clock, &JetBrainsMono_Regular_20, 0);
     lv_obj_set_style_text_color(lbl_clock, lv_color_hex(C_GOLD), 0);
-    lv_obj_align(lbl_clock, LV_ALIGN_LEFT_MID, 20, 0);
+    lv_obj_align(lbl_clock, LV_ALIGN_RIGHT_MID, -20, 0);
 
     lbl_sat_name = lv_label_create(hdr);
     lv_label_set_text(lbl_sat_name, "Loading...");
@@ -121,7 +121,7 @@ inline void build(lv_obj_t* scr) {
     lv_label_set_text(lbl_utc, "UTC --:--:--");
     lv_obj_set_style_text_font(lbl_utc, &JetBrainsMono_Regular_20, 0);
     lv_obj_set_style_text_color(lbl_utc, lv_color_hex(C_SEC), 0);
-    lv_obj_align(lbl_utc, LV_ALIGN_RIGHT_MID, -20, 0);
+    lv_obj_align(lbl_utc, LV_ALIGN_LEFT_MID, 20, 0);
 
     // ── Content panels (y = CONTENT_Y .. NAV_Y) ───────────────────────────────
     for (int i = 0; i < COUNT; i++) {
