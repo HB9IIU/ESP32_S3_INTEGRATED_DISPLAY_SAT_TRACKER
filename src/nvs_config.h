@@ -159,4 +159,28 @@ inline void saveSelectedSat(uint32_t id) {
     p.end();
 }
 
+// ── Display rotation ─────────────────────────────────────────────────────────
+
+inline int8_t loadRotation() {          // -1 = not yet set
+    Preferences p;
+    p.begin("display", true);
+    int8_t r = (int8_t)p.getChar("rotation", -1);
+    p.end();
+    return r;
+}
+
+inline void saveRotation(uint8_t rotation) {
+    Preferences p;
+    p.begin("display", false);
+    p.putChar("rotation", (int8_t)rotation);
+    p.end();
+}
+
+inline void clearRotation() {
+    Preferences p;
+    p.begin("display", false);
+    p.clear();
+    p.end();
+}
+
 } // namespace NVSConfig

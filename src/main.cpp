@@ -8,6 +8,7 @@
 #include "screen_manager.h"
 #include "myconfig.h"
 #include "LvglScreenshot.h"
+#include "orientation_check.h"
 
 LGFX tft;
 static LvglScreenshot screenshot;
@@ -43,6 +44,7 @@ void setup() {
     Serial.println("\n=== ESP32-S3 Satellite Tracker ===");
 
     initTFT();
+    runOrientationCheck();
 
     if (!LittleFS.begin(false, "/littlefs", 10, "littlefs")) {
         Serial.println("LittleFS mount failed.");

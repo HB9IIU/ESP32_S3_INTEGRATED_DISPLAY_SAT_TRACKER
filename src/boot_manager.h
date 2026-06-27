@@ -81,6 +81,7 @@ static void checkFactoryReset() {
                 NVSConfig::clearWiFi();
                 NVSConfig::clearLocation();
                 NVSConfig::clearUtcOffsetCache();
+                NVSConfig::clearRotation();
                 Serial.println("[boot] NVS cleared.");
                 delay(2000);
                 ESP.restart();
