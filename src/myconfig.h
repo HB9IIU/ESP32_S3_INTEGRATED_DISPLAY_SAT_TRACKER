@@ -32,7 +32,6 @@ constexpr uint32_t SAT_LIST[] = {
 
     // ── Space stations ───────────────────────────────────────────────────────
     25544,  // ISS (ZARYA)
-    48274,  // CSS (TIANHE-1)
 
     // ── Amateur (OSCAR / linear transponders / FM) ────────────────────────────
      7530,  // OSCAR 7 (AO-7)
@@ -72,7 +71,6 @@ constexpr uint32_t SAT_LIST[] = {
 
     // ── CubeSats ──────────────────────────────────────────────────────────────
     35932,  // SWISSCUBE
-    39428,  // Delfi-N3xt
 };
 
 constexpr int SAT_COUNT = sizeof(SAT_LIST) / sizeof(SAT_LIST[0]);
@@ -85,14 +83,14 @@ struct SatGroup {
     int             count;
 };
 
-constexpr uint32_t _GRP_STATIONS[] = { 25544, 48274 };
+constexpr uint32_t _GRP_STATIONS[] = { 25544 };
 constexpr uint32_t _GRP_AMATEUR[]  = { 7530, 22825, 24278, 27607, 39444, 40967,
                                         43017, 43770, 43803, 44909, 46495, 50466,
                                         53109, 61781, 43700 };
 constexpr uint32_t _GRP_NOAA[]     = { 25338, 28654, 33591 };
 constexpr uint32_t _GRP_WX_LEO[]   = { 38771, 43689, 65159, 40069, 44387, 57166, 59051 };
 constexpr uint32_t _GRP_WX_GEO[]   = { 38552, 40732, 54743 };
-constexpr uint32_t _GRP_CUBESAT[]  = { 35932, 39428 };
+constexpr uint32_t _GRP_CUBESAT[]  = { 35932 };
 
 #define _GCOUNT(a) (int)(sizeof(a)/sizeof(a[0]))
 
@@ -103,5 +101,6 @@ constexpr SatGroup SAT_GROUPS[] = {
     { "WEATHER LEO",    _GRP_WX_LEO,   _GCOUNT(_GRP_WX_LEO)   },
     { "WEATHER GEO",    _GRP_WX_GEO,   _GCOUNT(_GRP_WX_GEO)   },
     { "CUBESATS",       _GRP_CUBESAT,  _GCOUNT(_GRP_CUBESAT)  },
+    { "MY SATS",        nullptr,       0                       },
 };
 constexpr int SAT_GROUP_COUNT = _GCOUNT(SAT_GROUPS);

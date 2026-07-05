@@ -179,8 +179,12 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
 
     // Count how many satellites we already have on disk
     int missing = 0;
-    for (int i = 0; i < SAT_COUNT; i++)
-        if (!tleExists(SAT_LIST[i])) missing++;
+    for (int i = 0; i < SAT_COUNT; i++) {
+        if (!tleExists(SAT_LIST[i])) {
+            Serial.printf("[tle] Missing TLE: NORAD %lu\n", (unsigned long)SAT_LIST[i]);
+            missing++;
+        }
+    }
 
     // Decide freshness by time since last successful fetch, not by TLE epoch age.
     // (Some satellites have old epochs because Celestrak doesn't update them —
@@ -199,7 +203,7 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
         r.skipped = true;
         if (statusCb) {
             char msg[64];
-            snprintf(msg, sizeof(msg), "TLE data fresh (%.0f h old) — skipping", fetchAgeH);
+            snprintf(msg, sizeof(msg), "TLE data fresh (%.0f h old) - skipping", fetchAgeH);
             statusCb(msg, 0x00FF88);
         }
         return r;
