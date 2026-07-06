@@ -129,8 +129,8 @@ inline void build(lv_obj_t* scr) {
     btn_fw_update = lv_btn_create(hdr);
     lv_obj_set_size(btn_fw_update, 280, 36);
     lv_obj_align(btn_fw_update, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(btn_fw_update, lv_color_hex(0x1F6FEB), 0);
-    lv_obj_set_style_bg_color(btn_fw_update, lv_color_hex(0x3880F0), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(btn_fw_update, lv_color_hex(0x29445F), 0);
+    lv_obj_set_style_bg_color(btn_fw_update, lv_color_hex(0x365A7A), LV_STATE_PRESSED);
     lv_obj_set_style_border_width(btn_fw_update, 0, 0);
     lv_obj_set_style_radius(btn_fw_update, 4, 0);
     lv_obj_set_style_pad_all(btn_fw_update, 0, 0);
@@ -139,7 +139,7 @@ inline void build(lv_obj_t* scr) {
     lv_obj_t* fw_label = lv_label_create(btn_fw_update);
     lv_label_set_text(fw_label, "CHECK FOR FIRMWARE UPDATE");
     lv_obj_set_style_text_font(fw_label, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(fw_label, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_color(fw_label, lv_color_hex(0xD5E2EF), 0);
     lv_obj_center(fw_label);
 
     lbl_utc = lv_label_create(hdr);
