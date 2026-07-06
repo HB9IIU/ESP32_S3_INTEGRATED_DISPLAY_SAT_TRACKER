@@ -35,6 +35,7 @@ static lv_obj_t* _backBtn  = nullptr;
 static lv_obj_t* _grpPanel = nullptr;
 static lv_obj_t* _satPanel = nullptr;
 static bool      _built    = false;
+static uint32_t  _builtMySatsRevision = 0;
 
 static SatItem   _satItems[200];
 static int       _satItemCount = 0;
@@ -209,6 +210,7 @@ static void _buildItems() {
     }
 
     _built = true;
+    _builtMySatsRevision = NVSConfig::mySatsRevision();
     Serial.printf("[perf] ScreenSelector items built      %lu ms\n", millis() - t0);
 }
 
@@ -388,9 +390,11 @@ inline void build(lv_obj_t* scr) {
 
 inline void open() {
     if (!_overlay) return;
-    _built = false;
+    bool needsRebuild = !_built ||
+        _builtMySatsRevision != NVSConfig::mySatsRevision();
+    if (needsRebuild) _built = false;
     _buildItems();
-    _refreshGroupRows();
+    if (needsRebuild) _refreshGroupRows();
     // Always start at step 1
     lv_obj_add_flag(_satPanel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(_grpPanel, LV_OBJ_FLAG_HIDDEN);

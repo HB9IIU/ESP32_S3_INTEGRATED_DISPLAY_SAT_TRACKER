@@ -162,6 +162,11 @@ inline void saveSelectedSat(uint32_t id) {
 // ── User-added satellites ────────────────────────────────────────────────────
 
 constexpr size_t MAX_MY_SATS = 24;
+static uint32_t _mySatsRevision = 0;
+
+inline uint32_t mySatsRevision() {
+    return _mySatsRevision;
+}
 
 inline size_t loadMySats(uint32_t* ids, size_t capacity) {
     if (!ids || capacity == 0) return 0;
@@ -187,7 +192,9 @@ inline bool addMySat(uint32_t id) {
     p.begin("mysats", false);
     size_t written = p.putBytes("ids", ids, count * sizeof(uint32_t));
     p.end();
-    return written == count * sizeof(uint32_t);
+    bool ok = written == count * sizeof(uint32_t);
+    if (ok) _mySatsRevision++;
+    return ok;
 }
 
 inline void clearMySats() {
@@ -195,6 +202,7 @@ inline void clearMySats() {
     p.begin("mysats", false);
     p.clear();
     p.end();
+    _mySatsRevision++;
 }
 
 // ── Display rotation ─────────────────────────────────────────────────────────
