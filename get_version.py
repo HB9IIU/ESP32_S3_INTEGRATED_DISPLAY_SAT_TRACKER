@@ -7,6 +7,8 @@ def get_version():
             ["git", "describe", "--tags", "--always", "--dirty=+"],
             stderr=subprocess.DEVNULL
         ).decode().strip()
+        if v.startswith('v') or v.startswith('V'):
+            v = v[1:]
         return v if v else None
     except Exception:
         return None

@@ -147,6 +147,18 @@ static void _buildItems() {
 
     struct TmpSat { char name[24]; uint32_t id; };
     TmpSat tmp[64];
+    uint32_t mySatIds[NVSConfig::MAX_MY_SATS] = {};
+    size_t mySatCount = NVSConfig::loadMySats(mySatIds, NVSConfig::MAX_MY_SATS);
+
+    // Migrate the currently selected custom satellite from older firmware.
+    uint32_t selectedId = NVSConfig::loadSelectedSat(DEFAULT_SAT_ID);
+    bool selectedIsBuiltIn = false;
+    for (int i = 0; i < SAT_COUNT; i++)
+        if (SAT_LIST[i] == selectedId) selectedIsBuiltIn = true;
+    if (!selectedIsBuiltIn && TLEManager::tleExists(selectedId)) {
+        NVSConfig::addMySat(selectedId);
+        mySatCount = NVSConfig::loadMySats(mySatIds, NVSConfig::MAX_MY_SATS);
+    }
 
     for (int g = 0; g < SAT_GROUP_COUNT; g++) {
         strncpy(_groups[g].label, SAT_GROUPS[g].label, sizeof(_groups[g].label) - 1);
@@ -154,11 +166,17 @@ static void _buildItems() {
         _groups[g].start = _satItemCount;
         _groups[g].count = 0;
 
-        if (!SAT_GROUPS[g].ids) continue;  // MY SATS and future empty groups
-
         int tmpCount = 0;
-        for (int i = 0; i < SAT_GROUPS[g].count && tmpCount < 64; i++) {
-            uint32_t id = SAT_GROUPS[g].ids[i];
+        const uint32_t* ids = SAT_GROUPS[g].ids;
+        int idCount = SAT_GROUPS[g].count;
+        if (!ids && strcmp(SAT_GROUPS[g].label, "MY SATS") == 0) {
+            ids = mySatIds;
+            idCount = (int)mySatCount;
+        }
+        if (!ids) continue;
+
+        for (int i = 0; i < idCount && tmpCount < 64; i++) {
+            uint32_t id = ids[i];
             if (!TLEManager::tleExists(id)) continue;
             TmpSat& t = tmp[tmpCount];
             char name[30], l1[70], l2[70];
@@ -194,6 +212,25 @@ static void _buildItems() {
     Serial.printf("[perf] ScreenSelector items built      %lu ms\n", millis() - t0);
 }
 
+static void _refreshGroupRows() {
+    for (int g = 0; g < SAT_GROUP_COUNT; g++) {
+        lv_obj_t* grpRow = lv_obj_get_child(_grpPanel, g);
+        lv_obj_t* nameLbl = lv_obj_get_child(grpRow, 0);
+        lv_obj_t* cntLbl  = lv_obj_get_child(grpRow, 1);
+        if (_groups[g].count == 0) {
+            lv_label_set_text(cntLbl, "(empty)");
+            lv_obj_set_style_text_color(nameLbl, lv_color_hex(C_DIM), 0);
+            lv_obj_clear_flag(grpRow, LV_OBJ_FLAG_CLICKABLE);
+        } else {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d  " LV_SYMBOL_RIGHT, _groups[g].count);
+            lv_label_set_text(cntLbl, buf);
+            lv_obj_set_style_text_color(nameLbl, lv_color_hex(C_VAL), 0);
+            lv_obj_add_flag(grpRow, LV_OBJ_FLAG_CLICKABLE);
+        }
+    }
+}
+
 // ── Build ─────────────────────────────────────────────────────────────────────
 inline void build(lv_obj_t* scr) {
     _overlay = lv_obj_create(scr);
@@ -206,8 +243,11 @@ inline void build(lv_obj_t* scr) {
     lv_obj_set_style_pad_all(_overlay, 0, 0);
     lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Title — x=72 to leave room for back button
+    // Title — centered between the back and close controls
     _titleLbl = mk_label(_overlay, &lv_font_montserrat_18, C_SEC, 72, 13, "SELECT GROUP");
+    lv_obj_set_width(_titleLbl, 600);
+    lv_obj_set_style_text_align(_titleLbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_titleLbl, LV_ALIGN_TOP_MID, 0, 13);
 
     // Back button — shown only in step 2
     _backBtn = lv_btn_create(_overlay);
@@ -343,26 +383,14 @@ inline void build(lv_obj_t* scr) {
     lv_obj_add_flag(_overlay,  LV_OBJ_FLAG_HIDDEN);
 
     _buildItems();
-
-    // Update group rows with real counts
-    for (int g = 0; g < SAT_GROUP_COUNT; g++) {
-        lv_obj_t* grpRow = lv_obj_get_child(_grpPanel, g);
-        lv_obj_t* nameLbl = lv_obj_get_child(grpRow, 0);
-        lv_obj_t* cntLbl  = lv_obj_get_child(grpRow, 1);
-        if (_groups[g].count == 0) {
-            lv_label_set_text(cntLbl, "(empty)");
-            lv_obj_set_style_text_color(nameLbl, lv_color_hex(C_DIM), 0);
-            lv_obj_clear_flag(grpRow, LV_OBJ_FLAG_CLICKABLE);
-        } else {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d  " LV_SYMBOL_RIGHT, _groups[g].count);
-            lv_label_set_text(cntLbl, buf);
-        }
-    }
+    _refreshGroupRows();
 }
 
 inline void open() {
     if (!_overlay) return;
+    _built = false;
+    _buildItems();
+    _refreshGroupRows();
     // Always start at step 1
     lv_obj_add_flag(_satPanel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(_grpPanel, LV_OBJ_FLAG_HIDDEN);

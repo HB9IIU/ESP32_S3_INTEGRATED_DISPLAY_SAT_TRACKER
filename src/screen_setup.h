@@ -8,6 +8,7 @@
 #include "sat_tracker.h"
 #include "tle_manager.h"
 #include "http_utils.h"
+#include "firmware_update_page.h"
 
 namespace ScreenSetup {
 
@@ -81,6 +82,8 @@ static void _field_cb(lv_event_t* e) {
 static void _loc_key_cb(lv_event_t* e)   { _locKey((char)(intptr_t)lv_event_get_user_data(e)); }
 static void _norad_key_cb(lv_event_t* e) { _noradKey((char)(intptr_t)lv_event_get_user_data(e)); }
 
+inline void openFirmwareUpdate() { firmware_update_page_open(); }
+
 static void _save_cb(lv_event_t*) {
     if (!_lat_buf[0] || !_lon_buf[0]) {
         lv_label_set_text(_loc_status, "Enter lat and lon first");
@@ -151,15 +154,20 @@ static void _fetch_cb(lv_event_t*) {
         lv_obj_set_style_text_color(_sat_status, lv_color_hex(C_RED), 0);
         return;
     }
+    bool addedToMySats = NVSConfig::addMySat(id);
     NVSConfig::saveSelectedSat(id);
     SatTracker::begin(id);
 
     char msg[52];
     String sn = tname; sn.trim();
     if (sn.length() > 22) sn = sn.substring(0, 22);
-    snprintf(msg, sizeof(msg), "%s — now tracking", sn.c_str());
+    if (addedToMySats)
+        snprintf(msg, sizeof(msg), "%s - now tracking", sn.c_str());
+    else
+        snprintf(msg, sizeof(msg), "Tracking %s; MY SATS is full", sn.c_str());
     lv_label_set_text(_sat_status, msg);
-    lv_obj_set_style_text_color(_sat_status, lv_color_hex(C_GREEN), 0);
+    lv_obj_set_style_text_color(_sat_status,
+        lv_color_hex(addedToMySats ? C_GREEN : C_GOLD), 0);
 }
 
 // ── Widget factories ──────────────────────────────────────────────────────────
@@ -270,8 +278,8 @@ inline void build(lv_obj_t* panel) {
 
     // SAVE button
     lv_obj_t* sb = lv_btn_create(panel);
-    lv_obj_set_pos(sb, 12, 312);
-    lv_obj_set_size(sb, 374, 42);
+    lv_obj_set_pos(sb, 12, 320);
+    lv_obj_set_size(sb, 374, 40);
     lv_obj_set_style_bg_color(sb, lv_color_hex(0x1F6FEB), 0);
     lv_obj_set_style_bg_color(sb, lv_color_hex(0x3880F0), LV_STATE_PRESSED);
     lv_obj_set_style_border_width(sb, 0, 0);
@@ -283,7 +291,7 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(sl, &lv_font_montserrat_16, 0);
     lv_obj_center(sl);
 
-    _loc_status = mk_label(panel, &lv_font_montserrat_14, C_GREEN, 16, 360, "");
+    _loc_status = mk_label(panel, &lv_font_montserrat_14, C_GREEN, 16, 370, "");
 
     // ══════════════════════════════════════════════════════════════════════════
     //  RIGHT: ADD SATELLITE  (x = 402 … 800)
@@ -311,8 +319,8 @@ inline void build(lv_obj_t* panel) {
 
     // FETCH & TRACK button
     lv_obj_t* fb = lv_btn_create(panel);
-    lv_obj_set_pos(fb, RX + 12, 312);
-    lv_obj_set_size(fb, 374, 42);
+    lv_obj_set_pos(fb, RX + 12, 320);
+    lv_obj_set_size(fb, 374, 40);
     lv_obj_set_style_bg_color(fb, lv_color_hex(0x255825), 0);
     lv_obj_set_style_bg_color(fb, lv_color_hex(0x336B33), LV_STATE_PRESSED);
     lv_obj_set_style_border_width(fb, 0, 0);
@@ -324,7 +332,8 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(fl, &lv_font_montserrat_16, 0);
     lv_obj_center(fl);
 
-    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 360, "");
+    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 370, "");
+
 }
 
 inline void update() {}

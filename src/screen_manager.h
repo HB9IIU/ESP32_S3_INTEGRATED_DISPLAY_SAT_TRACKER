@@ -28,6 +28,7 @@ static const char* LABELS[COUNT] = {
 static lv_obj_t* panels[COUNT];
 static lv_obj_t* nav_btns[COUNT];
 static lv_obj_t* lbl_sat_name;
+static lv_obj_t* btn_fw_update;
 static lv_obj_t* lbl_utc;
 static lv_obj_t* lbl_clock;
 static ID        current = TRACKER;
@@ -51,11 +52,19 @@ static void switchTo(ID id) {
         lv_obj_add_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(panels[id], LV_OBJ_FLAG_HIDDEN);
     current = id;
+    if (id == SETUP) {
+        lv_obj_add_flag(lbl_sat_name, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(btn_fw_update, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(btn_fw_update, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(lbl_sat_name, LV_OBJ_FLAG_HIDDEN);
+    }
     updateNavHighlight();
     if (id == MAP) ScreenMap::onShow();
 }
 
 static void sat_name_cb(lv_event_t*) { ScreenSelector::open(); }
+static void fw_update_cb(lv_event_t*) { ScreenSetup::openFirmwareUpdate(); }
 
 static void nav_btn_cb(lv_event_t* e) {
     switchTo((ID)(intptr_t)lv_event_get_user_data(e));
@@ -116,6 +125,22 @@ inline void build(lv_obj_t* scr) {
     lv_obj_align(lbl_sat_name, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(lbl_sat_name, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(lbl_sat_name, sat_name_cb, LV_EVENT_CLICKED, nullptr);
+
+    btn_fw_update = lv_btn_create(hdr);
+    lv_obj_set_size(btn_fw_update, 280, 36);
+    lv_obj_align(btn_fw_update, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(btn_fw_update, lv_color_hex(0x1F6FEB), 0);
+    lv_obj_set_style_bg_color(btn_fw_update, lv_color_hex(0x3880F0), LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(btn_fw_update, 0, 0);
+    lv_obj_set_style_radius(btn_fw_update, 4, 0);
+    lv_obj_set_style_pad_all(btn_fw_update, 0, 0);
+    lv_obj_add_event_cb(btn_fw_update, fw_update_cb, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_flag(btn_fw_update, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t* fw_label = lv_label_create(btn_fw_update);
+    lv_label_set_text(fw_label, "CHECK FOR FIRMWARE UPDATE");
+    lv_obj_set_style_text_font(fw_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(fw_label, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_center(fw_label);
 
     lbl_utc = lv_label_create(hdr);
     lv_label_set_text(lbl_utc, "UTC --:--:--");

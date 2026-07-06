@@ -159,6 +159,44 @@ inline void saveSelectedSat(uint32_t id) {
     p.end();
 }
 
+// ── User-added satellites ────────────────────────────────────────────────────
+
+constexpr size_t MAX_MY_SATS = 24;
+
+inline size_t loadMySats(uint32_t* ids, size_t capacity) {
+    if (!ids || capacity == 0) return 0;
+    Preferences p;
+    p.begin("mysats", true);
+    size_t bytes = p.getBytesLength("ids");
+    size_t count = bytes / sizeof(uint32_t);
+    if (count > capacity) count = capacity;
+    if (count > 0) p.getBytes("ids", ids, count * sizeof(uint32_t));
+    p.end();
+    return count;
+}
+
+inline bool addMySat(uint32_t id) {
+    if (id == 0) return false;
+    uint32_t ids[MAX_MY_SATS] = {};
+    size_t count = loadMySats(ids, MAX_MY_SATS);
+    for (size_t i = 0; i < count; i++)
+        if (ids[i] == id) return true;
+    if (count >= MAX_MY_SATS) return false;
+    ids[count++] = id;
+    Preferences p;
+    p.begin("mysats", false);
+    size_t written = p.putBytes("ids", ids, count * sizeof(uint32_t));
+    p.end();
+    return written == count * sizeof(uint32_t);
+}
+
+inline void clearMySats() {
+    Preferences p;
+    p.begin("mysats", false);
+    p.clear();
+    p.end();
+}
+
 // ── Display rotation ─────────────────────────────────────────────────────────
 
 inline int8_t loadRotation() {          // -1 = not yet set

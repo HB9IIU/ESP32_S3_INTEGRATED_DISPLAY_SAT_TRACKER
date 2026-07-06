@@ -81,6 +81,7 @@ static void checkFactoryReset() {
                 NVSConfig::clearWiFi();
                 NVSConfig::clearLocation();
                 NVSConfig::clearUtcOffsetCache();
+                NVSConfig::clearMySats();
                 NVSConfig::clearRotation();
                 Serial.println("[boot] NVS cleared.");
                 delay(2000);
@@ -458,9 +459,9 @@ inline void run() {
         const int ok = SAT_COUNT - tleResult.satellitesMissing;
         if (tleResult.satellitesMissing == 0) {
             if (tleResult.skipped)
-                snprintf(msg, sizeof(msg), "TLE OK — data fresh, %d sats", SAT_COUNT);
+                snprintf(msg, sizeof(msg), "TLE OK - data fresh, %d sats", SAT_COUNT);
             else
-                snprintf(msg, sizeof(msg), "TLE updated — %d satellites", SAT_COUNT);
+                snprintf(msg, sizeof(msg), "TLE updated - %d satellites", SAT_COUNT);
             drawStatus(msg, 0x00FF88);
         } else {
             snprintf(msg, sizeof(msg), "TLE: %d/%d ok  (%d missing)",
