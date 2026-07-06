@@ -18,7 +18,6 @@
 #include <lvgl.h>
 #include <WiFi.h>
 #include "nvs_config.h"
-#include "firmware_update_page.h"
 
 LV_FONT_DECLARE(JetBrainsMono_Regular_14);
 LV_FONT_DECLARE(JetBrainsMono_Bold_20);
@@ -430,12 +429,7 @@ static void _wifi_close_done(lv_anim_t *) {
     _wifi_net_popup_list = nullptr;
     _wifi_success_close_timer = nullptr;
     _wifi_pass_visible   = false;
-    if (_wifi_close_to_main_pending) {
-        _wifi_close_to_main_pending = false;
-        setup_menu_close_after_subpage();
-    } else {
-        setup_menu_restore_after_subpage();
-    }
+    _wifi_close_to_main_pending = false;
 }
 
 static void _wifi_cancel_success_close_timer() {
@@ -560,10 +554,6 @@ static void _wifi_kb_event_cb(lv_event_t *e) {
     lv_textarea_add_text(_wifi_ta, txt);
 }
 
-static void _wifi_fw_update_cb(lv_event_t *) {
-    firmware_update_page_open();
-}
-
 // ─── Open ─────────────────────────────────────────────────────────────────────
 static void wifi_page_open() {
     if (_wifi_panel) return;
@@ -571,8 +561,6 @@ static void wifi_page_open() {
     _wifi_nvs_load();
     _wifi_pass_visible = false;
     _wifi_selected_index = -1;
-    setup_menu_hide_for_subpage();
-
     lv_obj_t *scan_overlay = _wifi_create_scan_overlay();
     String scan_opts = _wifi_scan_options();
     (void)scan_opts;
@@ -580,7 +568,6 @@ static void wifi_page_open() {
     const lv_coord_t SCREEN_W     = 800;
     const lv_coord_t SCREEN_H     = 480;
     const lv_coord_t PAGE_MARGIN  = 16;
-    const lv_coord_t footer_h     = 54;
     const lv_coord_t BOTTOM_GAP   = 6;
     const lv_coord_t header_h     = 60;
     const lv_coord_t ssid_y       = header_h;
@@ -601,7 +588,7 @@ static void wifi_page_open() {
     const lv_coord_t eye_btn_x    = field_x + pass_ta_w + field_gap;
     const lv_coord_t kbd_y        = pass_y + pass_h + 8;
     const lv_coord_t kbd_w        = SCREEN_W - (2 * PAGE_MARGIN);
-    const lv_coord_t kbd_h        = SCREEN_H - kbd_y - footer_h - BOTTOM_GAP;
+    const lv_coord_t kbd_h        = SCREEN_H - kbd_y - BOTTOM_GAP;
 
     _wifi_panel = lv_obj_create(lv_scr_act());
     lv_obj_remove_style_all(_wifi_panel);
@@ -809,33 +796,6 @@ static void wifi_page_open() {
 
     _wifi_apply_kb_mode(WIFI_KB_LOWER);
     lv_obj_add_event_cb(_wifi_kb, _wifi_kb_event_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-
-    // ── Footer: Firmware Update button ────────────────────────────────────────
-    lv_obj_t *ftr = lv_obj_create(_wifi_panel);
-    lv_obj_remove_style_all(ftr);
-    lv_obj_set_pos(ftr, 0, SCREEN_H - footer_h);
-    lv_obj_set_size(ftr, SCREEN_W, footer_h);
-    lv_obj_set_style_bg_color(ftr, lv_color_hex(0x12141E), 0);
-    lv_obj_set_style_bg_opa(ftr, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(ftr, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *fw_btn = lv_btn_create(ftr);
-    lv_obj_remove_style_all(fw_btn);
-    lv_obj_set_size(fw_btn, 420, 40);
-    lv_obj_align(fw_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(fw_btn, lv_color_hex(0x1C2A3A), 0);
-    lv_obj_set_style_bg_opa(fw_btn, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(fw_btn, lv_color_hex(0x2A3D55), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(fw_btn, lv_color_hex(0x3D6B9A), 0);
-    lv_obj_set_style_border_width(fw_btn, 2, 0);
-    lv_obj_set_style_radius(fw_btn, 10, 0);
-    lv_obj_add_event_cb(fw_btn, _wifi_fw_update_cb, LV_EVENT_CLICKED, nullptr);
-
-    lv_obj_t *fw_lbl = lv_label_create(fw_btn);
-    lv_label_set_text(fw_lbl, "Check for Firmware Update");
-    lv_obj_set_style_text_font(fw_lbl, &JetBrainsMono_Bold_20, 0);
-    lv_obj_set_style_text_color(fw_lbl, lv_color_hex(0xA0C0E8), 0);
-    lv_obj_center(fw_lbl);
 
     lv_obj_update_layout(_wifi_panel);
     lv_obj_invalidate(lv_scr_act());

@@ -66,6 +66,7 @@
   Set to 10 ms for smoother numeric updates (~100 fps ceiling).
 ===========================================================================*/
 #define LV_DISP_DEF_REFR_PERIOD 30   /* ms between LVGL redraws */
+#define LV_INDEV_DEF_READ_PERIOD 10  /* ms between touchscreen polls */
 
 /*===========================================================================
   DRAWING PERFORMANCE
