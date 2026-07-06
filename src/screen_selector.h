@@ -234,7 +234,7 @@ static void _refreshGroupRows() {
 // ── Build ─────────────────────────────────────────────────────────────────────
 inline void build(lv_obj_t* scr) {
     _overlay = lv_obj_create(scr);
-    lv_obj_set_size(_overlay, CONTENT_W, CONTENT_H);
+    lv_obj_set_size(_overlay, CONTENT_W, CONTENT_H + NAV_H);
     lv_obj_set_pos(_overlay, 0, CONTENT_Y);
     lv_obj_set_style_bg_color(_overlay, lv_color_hex(C_HDR), 0);
     lv_obj_set_style_bg_opa(_overlay, LV_OPA_COVER, 0);
@@ -396,6 +396,7 @@ inline void open() {
     lv_obj_clear_flag(_grpPanel, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(_titleLbl, "SELECT GROUP");
     lv_obj_add_flag(_backBtn, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(_overlay);
     lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
 }
 
