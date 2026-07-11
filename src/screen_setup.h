@@ -9,6 +9,7 @@
 #include "tle_manager.h"
 #include "http_utils.h"
 #include "firmware_update_page.h"
+#include "screen_websocket.h"
 
 namespace ScreenSetup {
 
@@ -191,6 +192,18 @@ static lv_obj_t* _key(lv_obj_t* p, int x, int y, int w, int h,
     return btn;
 }
 
+static lv_obj_t* _sectionTitle(lv_obj_t* p, int x, int y, int w, const char* text) {
+    lv_obj_t* accent = mk_panel(p, x, y + 5, 4, 13, C_SEC);
+    lv_obj_set_style_radius(accent, 2, 0);
+
+    lv_obj_t* lbl = lv_label_create(p);
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(C_SEC), 0);
+    lv_obj_set_pos(lbl, x + 12, y + 4);
+    return lbl;
+}
+
 // Creates a labelled value field; clickable if cb != nullptr.
 // Sets *val_out to the right-aligned value label.
 static lv_obj_t* _field(lv_obj_t* p, int x, int y, int w,
@@ -237,21 +250,20 @@ inline void build(lv_obj_t* panel) {
         snprintf(_lon_buf, sizeof(_lon_buf), "%.4f", (double)loc.lon);
     }
 
-    const int KG  = 5;    // gap between keys
-    const int LKW = 86, LKH = 38;  // location key size
-    const int NKW = 86, NKH = 38;  // NORAD key size
+    const int KG  = 5;
+    const int LKW = 86, LKH = 38;
+    const int NKW = 86, NKH = 38;
 
     // ── Vertical divider ──────────────────────────────────────────────────────
-    mk_panel(panel, 398, 0, 2, CONTENT_H, C_DIV);
+    mk_panel(panel, 398, 0, 2, HEADER_H + CONTENT_H, C_DIV);
 
     // ══════════════════════════════════════════════════════════════════════════
     //  LEFT: HOME LOCATION  (x = 0 … 398)
     // ══════════════════════════════════════════════════════════════════════════
-    mk_label(panel, &lv_font_montserrat_14, C_SEC, 16, 10, "HOME LOCATION");
+    _sectionTitle(panel, 12, 6, 374, "HOME LOCATION");
 
-    // Lat and Lon selector fields (tap to activate)
-    _lat_sel = _field(panel, 12, 35, 374, "LAT", _field_cb, 0, &_lat_val);
-    _lon_sel = _field(panel, 12, 85, 374, "LON", _field_cb, 1, &_lon_val);
+    _lat_sel = _field(panel, 12, 32, 374, "LAT", _field_cb, 0, &_lat_val);
+    _lon_sel = _field(panel, 12, 82, 374, "LON", _field_cb, 1, &_lon_val);
 
     if (loc.valid) {
         lv_label_set_text(_lat_val, _lat_buf);
@@ -260,8 +272,7 @@ inline void build(lv_obj_t* panel) {
     _refreshSel();
 
     // Location numpad: 4 cols × 4 rows
-    // Width = 4×86 + 3×5 = 359 px  →  margin = (398-359)/2 ≈ 19 px
-    const int LKX0 = 19, LKY0 = 138;
+    const int LKX0 = 19, LKY0 = 136;
     struct { const char* lbl; intptr_t key; } lk[16] = {
         {"7",'7'},  {"8",'8'},  {"9",'9'},  {LV_SYMBOL_BACKSPACE, '\b'},
         {"4",'4'},  {"5",'5'},  {"6",'6'},  {".",                  '.'},
@@ -276,9 +287,9 @@ inline void build(lv_obj_t* panel) {
                  LKW, LKH, lk[i].lbl, _loc_key_cb, lk[i].key);
         }
 
-    // SAVE button
+    // SAVE LOCATION button
     lv_obj_t* sb = lv_btn_create(panel);
-    lv_obj_set_pos(sb, 12, 320);
+    lv_obj_set_pos(sb, 12, 310);
     lv_obj_set_size(sb, 374, 40);
     lv_obj_set_style_bg_color(sb, lv_color_hex(0x1F6FEB), 0);
     lv_obj_set_style_bg_color(sb, lv_color_hex(0x3880F0), LV_STATE_PRESSED);
@@ -291,21 +302,36 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(sl, &lv_font_montserrat_16, 0);
     lv_obj_center(sl);
 
-    _loc_status = mk_label(panel, &lv_font_montserrat_14, C_GREEN, 16, 370, "");
+    _loc_status = mk_label(panel, &lv_font_montserrat_14, C_GREEN, 16, 358, "");
+
+    // FIRMWARE UPDATE button
+    lv_obj_t* fw = lv_btn_create(panel);
+    lv_obj_set_pos(fw, 12, 400);
+    lv_obj_set_size(fw, 374, 34);
+    lv_obj_set_style_bg_color(fw, lv_color_hex(0x29445F), 0);
+    lv_obj_set_style_bg_color(fw, lv_color_hex(0x365A7A), LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(fw, 0, 0);
+    lv_obj_set_style_radius(fw, 4, 0);
+    lv_obj_set_style_pad_all(fw, 0, 0);
+    lv_obj_add_event_cb(fw, [](lv_event_t*) { openFirmwareUpdate(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* fwl = lv_label_create(fw);
+    lv_label_set_text(fwl, "FIRMWARE UPDATE");
+    lv_obj_set_style_text_font(fwl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(fwl, lv_color_hex(0xD5E2EF), 0);
+    lv_obj_center(fwl);
 
     // ══════════════════════════════════════════════════════════════════════════
     //  RIGHT: ADD SATELLITE  (x = 402 … 800)
     // ══════════════════════════════════════════════════════════════════════════
     const int RX = 402;
-    mk_label(panel, &lv_font_montserrat_14, C_SEC, RX + 14, 10, "ADD SATELLITE");
+    _sectionTitle(panel, RX + 12, 6, 374, "ADD SATELLITE");
 
-    // NORAD ID display field — aligned with LON field on the left (y=85)
-    _field(panel, RX + 12, 85, 374, "NORAD ID", nullptr, 0, &_norad_val);
+    // NORAD ID field aligned with LON field
+    _field(panel, RX + 12, 82, 374, "NORAD ID", nullptr, 0, &_norad_val);
     lv_label_set_text(_norad_val, "------");
 
     // NORAD numpad: 3 cols × 4 rows, centered in 398 px
-    // Width = 3×86 + 2×5 = 268 px  →  margin = (398-268)/2 = 65 px
-    const int NKX0 = RX + 65, NKY0 = 138;
+    const int NKX0 = RX + 65, NKY0 = 136;
     struct { const char* lbl; intptr_t key; } nk[12] = {
         {"7",'7'}, {"8",'8'}, {"9",'9'},
         {"4",'4'}, {"5",'5'}, {"6",'6'},
@@ -319,7 +345,7 @@ inline void build(lv_obj_t* panel) {
 
     // FETCH & TRACK button
     lv_obj_t* fb = lv_btn_create(panel);
-    lv_obj_set_pos(fb, RX + 12, 320);
+    lv_obj_set_pos(fb, RX + 12, 310);
     lv_obj_set_size(fb, 374, 40);
     lv_obj_set_style_bg_color(fb, lv_color_hex(0x255825), 0);
     lv_obj_set_style_bg_color(fb, lv_color_hex(0x336B33), LV_STATE_PRESSED);
@@ -332,8 +358,30 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(fl, &lv_font_montserrat_16, 0);
     lv_obj_center(fl);
 
-    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 370, "");
+    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 358, "");
 
+    mk_panel(panel, 0, 392, 800, 2, C_DIV);
+
+    // WEB SOCKET button
+    lv_obj_t* ws = lv_obj_create(panel);
+    lv_obj_remove_style_all(ws);
+    lv_obj_set_pos(ws, RX + 12, 400);
+    lv_obj_set_size(ws, 374, 34);
+    lv_obj_set_style_bg_color(ws, lv_color_hex(0x1A2D40), 0);
+    lv_obj_set_style_bg_opa(ws, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(ws, lv_color_hex(0x255E84), LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(ws, lv_color_hex(C_SEC), 0);
+    lv_obj_set_style_border_width(ws, 2, 0);
+    lv_obj_set_style_radius(ws, 4, 0);
+    lv_obj_set_style_pad_all(ws, 0, 0);
+    lv_obj_clear_flag(ws, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(ws, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(ws, [](lv_event_t*) { ScreenWebSocket::open(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* wsl = lv_label_create(ws);
+    lv_label_set_text(wsl, "WEB SOCKET");
+    lv_obj_set_style_text_font(wsl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(wsl, lv_color_hex(C_SEC), 0);
+    lv_obj_center(wsl);
 }
 
 inline void update() {}

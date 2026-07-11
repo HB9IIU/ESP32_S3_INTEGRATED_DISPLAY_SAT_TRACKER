@@ -229,4 +229,34 @@ inline void clearRotation() {
     p.end();
 }
 
+// ── WebSocket server config ───────────────────────────────────────────────────
+
+struct WsConfig {
+    char     host[64];
+    uint16_t port;
+};
+
+inline WsConfig loadWsConfig() {
+    WsConfig c{};
+    strlcpy(c.host, "satwebsock", sizeof(c.host));
+    c.port = 4235;
+    Preferences p;
+    p.begin("wsock", true);
+    if (p.getBool("saved", false)) {
+        p.getString("host", c.host, sizeof(c.host));
+        c.port = (uint16_t)p.getUInt("port", 4235);
+    }
+    p.end();
+    return c;
+}
+
+inline void saveWsConfig(const char* host, uint16_t port) {
+    Preferences p;
+    p.begin("wsock", false);
+    p.putBool("saved", true);
+    p.putString("host", host);
+    p.putUInt("port", port);
+    p.end();
+}
+
 } // namespace NVSConfig

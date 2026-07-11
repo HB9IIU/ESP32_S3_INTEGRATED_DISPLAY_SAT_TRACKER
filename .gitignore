@@ -40,4 +40,4 @@ PythonVenv/.idea/
 PythonVenv/.venv/
 PythonVenv/.venv_backup_*/
 
-ISS_POINTER/
+src/config.h

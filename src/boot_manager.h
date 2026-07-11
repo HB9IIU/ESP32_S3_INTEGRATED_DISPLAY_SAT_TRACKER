@@ -347,10 +347,11 @@ static bool connectWiFi(const char* ssid, const char* pass,
                       bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], WiFi.channel());
     }
 
-    // mDNS — device reachable at http://<WIFI_HOSTNAME>.local:8080/screenshot.bmp
-    if (MDNS.begin(WIFI_HOSTNAME)) {
+    // mDNS — device reachable at http://<host>.local:8080/screenshot.bmp
+    NVSConfig::WsConfig _wsCfg = NVSConfig::loadWsConfig();
+    if (MDNS.begin(_wsCfg.host)) {
         MDNS.addService("http", "tcp", 8080);
-        Serial.printf("[mdns] Started — http://%s.local:8080/screenshot.bmp\n", WIFI_HOSTNAME);
+        Serial.printf("[mdns] Started — http://%s.local:8080/screenshot.bmp\n", _wsCfg.host);
     } else {
         Serial.println("[mdns] Failed to start");
     }

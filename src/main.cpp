@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <lvgl.h>
+#include <WebSocketsServer.h>
 #include "HB9IIUdisplayInit.h"
 #include "lv_driver.h"
 #include "boot_manager.h"
@@ -13,6 +14,7 @@
 
 LGFX tft;
 static LvglScreenshot screenshot;
+static WebSocketsServer* webSocket = nullptr;
 
 static void show_splash() {
     File root = LittleFS.open("/");
@@ -58,6 +60,17 @@ void setup() {
     BootManager::run();
     Serial.printf("[perf] BootManager::run()            %lu ms\n", millis() - t_boot0);
 
+    {
+        auto wsCfg = NVSConfig::loadWsConfig();
+        webSocket = new WebSocketsServer(wsCfg.port);
+        webSocket->begin();
+        webSocket->onEvent([](uint8_t num, WStype_t type, uint8_t* /*payload*/, size_t /*length*/) {
+            if (type == WStype_CONNECTED)    Serial.printf("[WS] client %u connected\n", num);
+            if (type == WStype_DISCONNECTED) Serial.printf("[WS] client %u disconnected\n", num);
+        });
+        Serial.printf("[WS] server started on port %u\n", wsCfg.port);
+    }
+
     uint32_t t_lv0 = millis();
     lv_init();
     lvgl_setup();
@@ -90,5 +103,16 @@ void loop() {
     lv_timer_handler();
     SatTracker::runPassCompute();   // next-pass search, runs outside LVGL timer
     screenshot.loop();
+    webSocket->loop();
+
+    static uint32_t lastWsBroadcast = 0;
+    if (millis() - lastWsBroadcast >= 1000) {
+        lastWsBroadcast = millis();
+        const auto& s = SatTracker::getState();
+        char buf[64];
+        snprintf(buf, sizeof(buf), "{\"azimuth\":%.1f,\"elevation\":%.1f}", s.azimuth, s.elevation);
+        webSocket->broadcastTXT(buf);
+    }
+
     delay(5);
 }

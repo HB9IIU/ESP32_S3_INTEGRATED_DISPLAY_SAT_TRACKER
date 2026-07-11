@@ -2,7 +2,7 @@
 
 // ── Project identity ──────────────────────────────────────────────────────────
 // Device reachable at http://<WIFI_HOSTNAME>.local after WiFi connect
-#define WIFI_HOSTNAME "hb9iiu"
+#define WIFI_HOSTNAME "satwebsock"
 
 // ── Default satellite ─────────────────────────────────────────────────────────
 // NORAD ID shown on startup before the user selects another satellite
