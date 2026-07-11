@@ -36,6 +36,12 @@ struct PassInfo {
     double azStop  = 0;   // degrees
 };
 
+struct AllPassEntry {
+    PassInfo pass;
+    uint32_t noradId;
+    char     name[32];
+};
+
 struct IssSighting {
     bool   valid     = false;
     time_t start     = 0;
@@ -92,6 +98,11 @@ static volatile int skyCount = 0;
 static MapEntry     mapEntries[SAT_COUNT];
 static volatile int mapEntryCount = 0;
 static TaskHandle_t _skyTaskHandle = nullptr;
+
+static Sgp4         _allPassSgp4;
+static AllPassEntry _allPassEntries[MAX_PASSES];
+static int          _allPassEntryCount = 0;
+static bool         _allPassComputeNeeded = true;
 
 static time_t jdToUnix(double jd) {
     return (time_t)((jd - 2440587.5) * 86400.0);
@@ -202,6 +213,80 @@ static void computeIssSightings() {
     _issSightingsComputedAt = now;
     Serial.printf("[iss] %d naked-eye sightings computed in %lu ms\n",
                   issSightingCount, millis() - t0);
+}
+
+static void computeAllPasses() {
+    struct Candidate {
+        PassInfo pass;
+        uint32_t noradId;
+        char     name[32];
+    };
+    static Candidate cands[SAT_COUNT];
+    int cnt = 0;
+
+    NVSConfig::LocationData loc = NVSConfig::loadLocation();
+    char tname[30], l1[70], l2[70];
+    time_t now = time(nullptr);
+    uint32_t t0 = millis();
+
+    for (int g = 0; g < SAT_GROUP_COUNT; g++) {
+        if (!SAT_GROUPS[g].ids) continue;
+        for (int si = 0; si < SAT_GROUPS[g].count; si++) {
+            uint32_t id = SAT_GROUPS[g].ids[si];
+            if (!TLEManager::loadTLE(id, tname, l1, l2)) continue;
+            if (!_allPassSgp4.init(tname, l1, l2)) continue;
+            if (loc.valid) _allPassSgp4.site(loc.lat, loc.lon, 0.0);
+            _allPassSgp4.findsat((unsigned long)now);
+            if (_allPassSgp4.satAlt > 35000.0) continue;   // skip GEO
+
+            time_t searchFrom = now;
+            if (_allPassSgp4.satEl > 0.0) {
+                for (int step = 1; step <= 144; step++) {
+                    time_t t = now - (time_t)step * 300;
+                    _allPassSgp4.findsat((unsigned long)t);
+                    if (_allPassSgp4.satEl <= 0.0) { searchFrom = t; break; }
+                }
+            }
+            _allPassSgp4.initpredpoint((unsigned long)searchFrom, 0.0);
+
+            passinfo pd;
+            if (!_allPassSgp4.nextpass(&pd, 20)) continue;
+            _allPassSgp4.findsat((unsigned long)jdToUnix(pd.jdmax));
+
+            if (cnt < SAT_COUNT) {
+                Candidate& c = cands[cnt];
+                c.pass.valid   = true;
+                c.pass.start   = jdToUnix(pd.jdstart);
+                c.pass.stop    = jdToUnix(pd.jdstop);
+                c.pass.maxTime = jdToUnix(pd.jdmax);
+                c.pass.maxEl   = pd.maxelevation;
+                c.pass.azStart = pd.azstart;
+                c.pass.azMax   = _allPassSgp4.satAz;
+                c.pass.azStop  = pd.azstop;
+                c.noradId      = id;
+                strncpy(c.name, tname, sizeof(c.name) - 1);
+                c.name[sizeof(c.name) - 1] = '\0';
+                for (int j = (int)strlen(c.name) - 1; j >= 0 && c.name[j] == ' '; j--)
+                    c.name[j] = '\0';
+                cnt++;
+            }
+        }
+    }
+
+    // Sort by AOS ascending
+    for (int i = 0; i < cnt - 1; i++)
+        for (int j = i + 1; j < cnt; j++)
+            if (cands[j].pass.start < cands[i].pass.start)
+                std::swap(cands[i], cands[j]);
+
+    int n = (cnt < MAX_PASSES) ? cnt : MAX_PASSES;
+    for (int i = 0; i < n; i++) {
+        _allPassEntries[i].pass    = cands[i].pass;
+        _allPassEntries[i].noradId = cands[i].noradId;
+        strncpy(_allPassEntries[i].name, cands[i].name, sizeof(_allPassEntries[i].name));
+    }
+    _allPassEntryCount = n;
+    Serial.printf("[all-passes] %d entries computed in %lu ms\n", n, millis() - t0);
 }
 
 static void computeNextPasses() {
@@ -367,6 +452,21 @@ inline LatLon latLonAt(time_t t) {
 inline const PassInfo* getPasses(int& count) {
     count = passCount;
     return passes;
+}
+
+inline void runAllPassCompute() {
+    if (!_allPassComputeNeeded && _allPassEntryCount > 0) {
+        if (_allPassEntries[0].pass.valid && time(nullptr) > _allPassEntries[0].pass.stop + 15)
+            _allPassComputeNeeded = true;
+    }
+    if (!_allPassComputeNeeded) return;
+    _allPassComputeNeeded = false;
+    computeAllPasses();
+}
+
+inline const AllPassEntry* getAllPassEntries(int& count) {
+    count = _allPassEntryCount;
+    return _allPassEntries;
 }
 
 inline const IssSighting* getIssSightings(int& count) {

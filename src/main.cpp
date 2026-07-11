@@ -101,7 +101,8 @@ void setup() {
 
 void loop() {
     lv_timer_handler();
-    SatTracker::runPassCompute();   // next-pass search, runs outside LVGL timer
+    SatTracker::runPassCompute();      // next-pass search for active sat
+    SatTracker::runAllPassCompute();   // next-pass search across all satellites
     screenshot.loop();
     webSocket->loop();
 

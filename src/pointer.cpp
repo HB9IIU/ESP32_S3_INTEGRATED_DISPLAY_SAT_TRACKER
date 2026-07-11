@@ -229,7 +229,8 @@ void setup() {
   releaseMotors();
 
   Serial.println("\n[5/5] Test run");
-  testRun();
+  if (POINTER_ENABLE_TEST_RUN) testRun();
+  else Serial.println("[Test] Skipped (POINTER_ENABLE_TEST_RUN = false)");
 
   Serial.println("\n============================================");
   Serial.printf("  Ready — server: %s:%d\n", websocket_host, websocket_port);
