@@ -12,6 +12,9 @@ node_modules/
 .venv/
 __pycache__/
 *.pyc
+gen_font.py
+get_version.py
+publish_release.py
 
 # --- macOS ---
 .DS_Store
@@ -40,3 +43,5 @@ Doc/*
 PythonVenv/.idea/
 PythonVenv/.venv/
 PythonVenv/.venv_backup_*/
+
+ISS_POINTER/
