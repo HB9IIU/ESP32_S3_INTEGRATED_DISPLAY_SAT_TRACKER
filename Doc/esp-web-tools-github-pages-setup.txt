@@ -1,0 +1,146 @@
+═══════════════════════════════════════════════════════════════════════
+ ESP Web Tools — Browser-based Firmware Flashing via GitHub Pages
+ Summary for reuse in other PlatformIO / ESP32 projects
+═══════════════════════════════════════════════════════════════════════
+
+WHAT IT DOES
+────────────
+Hosts a webpage on GitHub Pages that lets anyone flash your ESP32
+firmware directly from Chrome or Edge over USB — no IDE required.
+Every push to main triggers an automatic rebuild and redeploy.
+
+
+FILES TO CREATE IN THE REPO
+────────────────────────────
+
+1. web/manifest.json
+   Tells the browser which binary files to flash and at which offsets.
+   Adapt offsets to your partition table.
+
+   {
+     "name": "Your Project Name",
+     "version": "%%VERSION%%",
+     "new_install_prompt_erase": false,
+     "builds": [
+       {
+         "chipFamily": "ESP32-S3",
+         "parts": [
+           { "path": "firmware/bootloader.bin",  "offset": 0       },
+           { "path": "firmware/partitions.bin",  "offset": 32768   },
+           { "path": "firmware/firmware.bin",    "offset": 65536   },
+           { "path": "firmware/littlefs.bin",    "offset": 8454144 }
+         ]
+       }
+     ]
+   }
+
+   Common offsets:
+     ESP32-S3 bootloader  →  0        (0x00000)
+     ESP32    bootloader  →  4096     (0x01000)  ← DIFFERENT from S3!
+     Partition table      →  32768    (0x08000)
+     App (default)        →  65536    (0x10000)
+     LittleFS offset depends on your partitions.csv
+
+   %%VERSION%% is a placeholder replaced by CI with the git short SHA.
+   Remove the littlefs part if your project has no data/ folder.
+
+
+2. web/index.html
+   The flash page. Load esp-web-tools from unpkg and add the button:
+
+   <script type="module"
+     src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module">
+   </script>
+   <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+
+   The %%VERSION%% and %%BUILD_DATE%% placeholders in the HTML are
+   replaced by the CI workflow with sed before deployment.
+
+
+3. .github/workflows/build-flash-page.yml
+   The GitHub Actions workflow. Key sections:
+
+   on:
+     push:
+       branches: [main]
+     workflow_dispatch:          ← allows manual trigger from Actions tab
+
+   permissions:
+     contents: read
+     pages:    write
+     id-token: write
+
+   Steps:
+     a. actions/checkout@v4
+     b. actions/setup-python@v5  (python 3.11)
+     c. actions/cache@v4         (cache ~/.platformio and ~/.cache/pip)
+     d. pip install --upgrade platformio
+     e. pio run -e DISPLAY                    ← build firmware
+     f. pio run -e DISPLAY -t buildfs         ← build LittleFS (if needed)
+     g. mkdir deploy/firmware, copy .bin files, inject version with sed
+     h. actions/configure-pages@v5
+     i. actions/upload-pages-artifact@v3      (path: ./deploy)
+     j. actions/deploy-pages@v4
+
+   Version injection (step g):
+     VERSION="${GITHUB_SHA::7}"
+     BUILD_DATE="$(date -u '+%Y-%m-%d')"
+     sed -e "s/%%VERSION%%/${VERSION}/g" \
+         -e "s/%%BUILD_DATE%%/${BUILD_DATE}/g" \
+         web/manifest.json > deploy/manifest.json
+     sed -e "s/%%VERSION%%/${VERSION}/g" \
+         -e "s/%%BUILD_DATE%%/${BUILD_DATE}/g" \
+         web/index.html > deploy/index.html
+
+
+GITHUB SETTINGS (one-time, per repo)
+──────────────────────────────────────
+Settings → Pages → Source → GitHub Actions → Save
+
+That's the only manual step. After that, every push redeploys automatically.
+
+
+RESULTING URL
+─────────────
+https://<github-username>.github.io/<repo-name>/
+
+Example:
+https://hb9iiu.github.io/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/
+
+
+BUILD TIMES
+───────────
+First run  : 12–15 min  (downloads espressif32 platform ~600 MB)
+Later runs : 3–4 min    (PlatformIO cache is warm)
+
+
+BROWSER REQUIREMENTS
+────────────────────
+Chrome or Edge only — Web Serial API is not supported in Firefox.
+Device must be connected via USB before clicking Install.
+
+
+ADDING LITTLEFS TO THE FLASH
+──────────────────────────────
+Include the littlefs.bin part in manifest.json only if your project
+uses a data/ folder. The CI command "pio run -e ENV -t buildfs"
+produces .pio/build/ENV/littlefs.bin.
+The LittleFS offset must match the "littlefs" row in partitions.csv.
+
+
+WORKFLOW TRIGGER OPTIONS
+────────────────────────
+- Automatic : any push to main
+- Manual    : Actions tab → workflow → "Run workflow" button
+              (useful if the first push happened before Pages was enabled)
+
+
+NOTES
+─────
+- The web/ source files are committed to the repo; the compiled
+  binaries are NOT — they are built in CI and deployed ephemerally
+  to GitHub Pages.
+- The deploy/ folder is created in the CI runner and never committed.
+- The PlatformIO cache key is hashed from platformio.ini, so a change
+  to board or platform version triggers a fresh cache automatically.
+═══════════════════════════════════════════════════════════════════════
