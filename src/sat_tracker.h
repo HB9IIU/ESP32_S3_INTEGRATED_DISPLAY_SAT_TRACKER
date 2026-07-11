@@ -37,15 +37,17 @@ struct PassInfo {
 };
 
 struct IssSighting {
-    bool   valid   = false;
-    time_t start   = 0;
-    time_t stop    = 0;
-    time_t maxTime = 0;
-    double maxEl   = 0;
-    double azStart = 0;
-    double elStart = 0;
-    double azStop  = 0;
-    double elStop  = 0;
+    bool   valid     = false;
+    time_t start     = 0;
+    time_t stop      = 0;
+    time_t maxTime   = 0;
+    double maxEl     = 0;
+    double azStart   = 0;
+    double elStart   = 0;
+    double azStop    = 0;
+    double elStop    = 0;
+    time_t passStart = 0;   // raw orbital AOS (full pass before visibility filter)
+    time_t passStop  = 0;   // raw orbital LOS
 };
 
 struct State {
@@ -185,10 +187,12 @@ static void computeIssSightings() {
         if (sight.valid) {
             if (sight.stop <= sight.start)
                 sight.stop = sight.start + 30;
-            sight.azStart = firstAz;
-            sight.elStart = firstEl;
-            sight.azStop  = lastAz;
-            sight.elStop  = lastEl;
+            sight.azStart   = firstAz;
+            sight.elStart   = firstEl;
+            sight.azStop    = lastAz;
+            sight.elStop    = lastEl;
+            sight.passStart = passStart;
+            sight.passStop  = passStop;
             issSightings[issSightingCount++] = sight;
         }
 
@@ -341,6 +345,14 @@ inline ElAz elevAzAt(time_t t) {
     if (!state.tleLoaded) return {-90.0, 0.0};
     sgp4.findsat((unsigned long)t);
     return {sgp4.satEl, sgp4.satAz};
+}
+
+// Same as elevAzAt() but uses the ISS predictor instance (_issSgp4).
+// Valid only after getIssSightings() has been called at least once.
+inline ElAz issElevAzAt(time_t t) {
+    if (!_issLoaded) return {-90.0, 0.0};
+    _issSgp4.findsat((unsigned long)t);
+    return {_issSgp4.satEl, _issSgp4.satAz};
 }
 
 struct LatLon { double lat; double lon; };
