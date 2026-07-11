@@ -40,7 +40,9 @@ const int IamAliveInterval     = 20000;
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
 WebSocketsClient webSocket;
-volatile bool wsConnected = false;
+volatile bool wsConnected    = false;
+unsigned long lastWsMsgTime  = 0;
+const unsigned long WS_WATCHDOG_MS = 15000; // reconnect if silent for 15 s
 
 const int maxRetryAttempts = 50;
 int currentRetryAttempt    = 0;
@@ -214,6 +216,7 @@ void setup() {
     ESP.restart();
   }
   Serial.println("[WS] Server confirmed reachable ✓");
+  lastWsMsgTime = millis();
 
   Serial.println("\n[3/5] Homing");
   setHomePosition();
@@ -237,6 +240,21 @@ void loop() {
   webSocket.loop();
 
   unsigned long now = millis();
+
+  // Watchdog: if messages have stopped arriving, signal NO and force reconnect.
+  if (now - lastWsMsgTime > WS_WATCHDOG_MS) {
+    Serial.printf("[WS] No message for %lu ms — signalling NO and reconnecting\n",
+      now - lastWsMsgTime);
+    pointerAzimuth   = 0;
+    pointerElevation = 0;
+    ElevationStepperGotoAngle(0);
+    AzimuthStepperGotoAngle(0);
+    doNoShake();
+    lastWsMsgTime = now;
+    webSocket.disconnect(); // triggers WStype_DISCONNECTED → retryWebSocketConnection()
+    return;
+  }
+
   if (now - lastMoveTime < moveInterval) return;
   lastMoveTime = now;
 
@@ -267,6 +285,7 @@ void handleWebSocketMessage(const char* payload) {
   JsonDocument doc;
   if (deserializeJson(doc, payload)) return;
 
+  lastWsMsgTime    = millis();
   pointerAzimuth   = round((float)doc["azimuth"]);
   pointerElevation = round((float)doc["elevation"]);
 
@@ -285,6 +304,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
       Serial.println("[WS] Connected");
       wsConnected = true;
       currentRetryAttempt = 0;
+      lastWsMsgTime = millis(); // start watchdog window from this moment
       break;
     case WStype_TEXT:
       handleWebSocketMessage((const char*)payload);

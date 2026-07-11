@@ -31,7 +31,7 @@ static lv_obj_t* panels[COUNT];
 static lv_obj_t* nav_btns[COUNT];
 static lv_obj_t* lbl_sat_name;
 static lv_obj_t* btn_fw_update;
-static lv_obj_t* btn_ws;
+static lv_obj_t* lbl_loc;
 static lv_obj_t* lbl_utc;
 static ID        current = TRACKER;
 
@@ -63,7 +63,7 @@ static void switchTo(ID id) {
         lv_obj_set_pos(panels[SETUP], 0, CONTENT_Y);
         lv_obj_set_size(panels[SETUP], CONTENT_W, CONTENT_H);
         lv_obj_add_flag(btn_fw_update, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(btn_ws, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(lbl_loc, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(lbl_sat_name, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(lbl_utc, LV_OBJ_FLAG_HIDDEN);
     }
@@ -100,10 +100,13 @@ static void timer_cb(lv_timer_t*) {
     // ── Header clocks ─────────────────────────────────────────────────────────
     struct tm ti{};
     time_t now = time(nullptr);
-    char buf[20];
+    char buf[24];
     gmtime_r(&now, &ti);
     strftime(buf, sizeof(buf), "UTC %H:%M:%S", &ti);
     lv_label_set_text(lbl_utc, buf);
+    localtime_r(&now, &ti);
+    strftime(buf, sizeof(buf), "LOC %H:%M:%S", &ti);
+    lv_label_set_text(lbl_loc, buf);
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -117,25 +120,11 @@ inline void build(lv_obj_t* scr) {
     // ── Persistent header (y = 0 .. HEADER_H) ────────────────────────────────
     hdr = mk_panel(scr, 0, 0, 800, HEADER_H, C_HDR);
 
-    btn_ws = lv_obj_create(hdr);
-    lv_obj_remove_style_all(btn_ws);
-    lv_obj_set_size(btn_ws, 170, 32);
-    lv_obj_align(btn_ws, LV_ALIGN_RIGHT_MID, -8, 0);
-    lv_obj_set_style_bg_color(btn_ws, lv_color_hex(C_HDR), 0);
-    lv_obj_set_style_bg_opa(btn_ws, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(btn_ws, lv_color_hex(0x1A3A4A), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(btn_ws, lv_color_hex(C_SEC), 0);
-    lv_obj_set_style_border_width(btn_ws, 2, 0);
-    lv_obj_set_style_radius(btn_ws, 6, 0);
-    lv_obj_set_style_pad_all(btn_ws, 0, 0);
-    lv_obj_clear_flag(btn_ws, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(btn_ws, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(btn_ws, [](lv_event_t*) { ScreenWebSocket::open(); }, LV_EVENT_CLICKED, nullptr);
-    lv_obj_t* ws_lbl = lv_label_create(btn_ws);
-    lv_label_set_text(ws_lbl, "WEB SOCKET");
-    lv_obj_set_style_text_font(ws_lbl, &JetBrainsMono_Regular_20, 0);
-    lv_obj_set_style_text_color(ws_lbl, lv_color_hex(C_SEC), 0);
-    lv_obj_center(ws_lbl);
+    lbl_loc = lv_label_create(hdr);
+    lv_label_set_text(lbl_loc, "LOC --:--:--");
+    lv_obj_set_style_text_font(lbl_loc, &JetBrainsMono_Regular_20, 0);
+    lv_obj_set_style_text_color(lbl_loc, lv_color_hex(C_SEC), 0);
+    lv_obj_align(lbl_loc, LV_ALIGN_RIGHT_MID, -20, 0);
 
     lbl_sat_name = lv_label_create(hdr);
     lv_label_set_text(lbl_sat_name, "Loading...");
