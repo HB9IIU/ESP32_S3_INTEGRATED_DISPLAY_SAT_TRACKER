@@ -59,7 +59,7 @@ Both boards share the same ESP32-S3 SoC, 800×480 RGB parallel display, GT911 ca
 
 ## Demo
 
-[![Watch the demo](https://img.youtube.com/vi/zzAkgtAQklo/maxresdefault.jpg)](https://www.youtube.com/watch?v=zzAkgtAQklo)
+[![Watch the demo](https://img.youtube.com/vi/E7IhTCEQQ68/maxresdefault.jpg)](https://youtu.be/E7IhTCEQQ68)
 
 ---
 
