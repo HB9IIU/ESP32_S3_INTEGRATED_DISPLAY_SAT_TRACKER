@@ -104,3 +104,69 @@ constexpr SatGroup SAT_GROUPS[] = {
     { "MY SATS",        nullptr,       0                       },
 };
 constexpr int SAT_GROUP_COUNT = _GCOUNT(SAT_GROUPS);
+
+// ── Satellite frequency database ──────────────────────────────────────────────
+// downlinkMHz : what you tune your receiver to  (0 = unknown)
+// uplinkMHz   : what you transmit on            (0 = receive-only / beacon)
+// mode        : modulation label shown on screen
+struct SatFreq {
+    uint32_t    noradId;
+    double      downlinkMHz;
+    double      uplinkMHz;
+    const char* mode;
+};
+
+static const SatFreq SAT_FREQS[] = {
+    // ── Space stations ───────────────────────────────────────────────────────
+    { 25544,  145.825,      0.0,     "APRS" },  // ISS — APRS beacon (always on)
+
+    // ── Amateur FM repeaters ─────────────────────────────────────────────────
+    { 22825,  436.795,    145.850,   "FM"   },  // AO-27
+    { 27607,  436.795,    145.850,   "FM"   },  // SO-50  (67 Hz tone on UL)
+    { 40967,  145.980,    435.170,   "FM"   },  // FOX-1A (AO-85)
+    { 43017,  145.960,    435.250,   "FM"   },  // FOX-1B (AO-91)
+    { 43770,  145.920,    435.348,   "FM"   },  // FOX-1CLIFF (AO-95)
+    { 43803,  437.345,    145.840,   "FM"   },  // JY1SAT (JO-97)
+    { 53109,  437.025,    435.310,   "GMSK" },  // GREENCUBE (IO-117)
+    { 61781,  437.525,    145.890,   "FM"   },  // ASRTU-1 (AO-123)
+
+    // ── Amateur linear transponders (center frequencies, inverting) ──────────
+    {  7530,  145.949,    435.058,   "USB"  },  // AO-7  Mode B
+    { 24278,  435.850,    145.925,   "USB"  },  // FO-29
+    { 39444,  145.960,    435.140,   "USB"  },  // AO-73 (FO-73)
+    { 44909,  145.950,    435.625,   "USB"  },  // RS-44
+    { 50466,  145.865,    435.170,   "USB"  },  // XW-3  (HO-113)
+
+    // ── Geostationary ────────────────────────────────────────────────────────
+    { 43700,  10489.750,  2400.175,  "USB"  },  // ES'HAIL-2 / QO-100 narrowband
+
+    // ── CubeSats / beacons ───────────────────────────────────────────────────
+    { 35932,  437.505,      0.0,     "CW"   },  // SWISSCUBE
+
+    // ── NOAA APT (VHF) ───────────────────────────────────────────────────────
+    { 25338,  137.620,      0.0,     "APT"  },  // NOAA 15
+    { 28654,  137.9125,     0.0,     "APT"  },  // NOAA 18
+    { 33591,  137.100,      0.0,     "APT"  },  // NOAA 19
+
+    // ── Meteor-M LRPT (VHF) ─────────────────────────────────────────────────
+    { 40069,  137.100,      0.0,     "LRPT" },  // METEOR-M2
+    { 44387,  137.900,      0.0,     "LRPT" },  // METEOR-M2-2
+    { 57166,  137.900,      0.0,     "LRPT" },  // METEOR-M2-3
+    { 59051,  137.900,      0.0,     "LRPT" },  // METEOR-M2-4
+
+    // ── MetOp AHRPT (L-band) ─────────────────────────────────────────────────
+    { 38771,  1701.3,       0.0,     "AHRPT"},  // METOP-B
+    { 43689,  1701.3,       0.0,     "AHRPT"},  // METOP-C
+
+    // ── Meteosat LRIT (S-band) ───────────────────────────────────────────────
+    { 38552,  1694.5,       0.0,     "LRIT" },  // METEOSAT-10 (MSG-3)
+    { 40732,  1695.0,       0.0,     "LRIT" },  // METEOSAT-11 (MSG-4)
+    { 54743,  1694.5,       0.0,     "LRIT" },  // METEOSAT-12 (MTG-I1)
+};
+static const int SAT_FREQ_COUNT = (int)(sizeof(SAT_FREQS) / sizeof(SAT_FREQS[0]));
+
+inline const SatFreq* getSatFreq(uint32_t noradId) {
+    for (int i = 0; i < SAT_FREQ_COUNT; i++)
+        if (SAT_FREQS[i].noradId == noradId) return &SAT_FREQS[i];
+    return nullptr;
+}

@@ -29,6 +29,7 @@ static lv_obj_t *lbl_pass_hdr;
 static lv_obj_t *lbl_aos, *lbl_los, *lbl_tca, *lbl_duration, *lbl_max_el, *lbl_pass_az;
 static lv_obj_t *lbl_countdown, *lbl_los_countdown;
 static lv_obj_t *lbl_az_val, *lbl_el_val;
+static lv_obj_t *_lbl_rx_key, *_lbl_rx_val, *_lbl_tx_key, *_lbl_tx_val;
 
 static void (*onSelectSat)() = nullptr;
 
@@ -59,6 +60,15 @@ static const char* azCompass(double az) {
         "S","SSW","SW","WSW","W","WNW","NW","NNW"
     };
     return dirs[(int)((az + 11.25) / 22.5) % 16];
+}
+
+static void _fmtFreq(char* out, size_t sz, double mhz, const char* mode) {
+    if (mhz >= 10000.0)
+        snprintf(out, sz, "%.3fG %s", mhz / 1000.0, mode);  // GHz
+    else if (mhz >= 1000.0)
+        snprintf(out, sz, "%.1f %s", mhz, mode);             // L/S-band MHz
+    else
+        snprintf(out, sz, "%.3f %s", mhz, mode);             // VHF/UHF MHz
 }
 
 // az/el -> canvas-local pixel
@@ -202,6 +212,22 @@ inline void build(lv_obj_t* panel) {
     lbl_doppler = mk_label(panel, FT, C_VAL, 8, 272);
     lv_obj_set_width(lbl_doppler, COL_W - 16);
     lv_obj_set_style_text_align(lbl_doppler, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_panel(panel, 8, 296, COL_W - 17, 1, C_DIV);
+
+    _lbl_rx_key = mk_label(panel, FT, C_DIM, 8, 300, "RX");
+    _lbl_rx_val = mk_label(panel, FT, C_VAL, 8, 300);
+    lv_obj_set_width(_lbl_rx_val, COL_W - 16);
+    lv_obj_set_style_text_align(_lbl_rx_val, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_add_flag(_lbl_rx_key, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(_lbl_rx_val, LV_OBJ_FLAG_HIDDEN);
+
+    _lbl_tx_key = mk_label(panel, FT, C_DIM, 8, 326, "TX");
+    _lbl_tx_val = mk_label(panel, FT, C_VAL, 8, 326);
+    lv_obj_set_width(_lbl_tx_val, COL_W - 16);
+    lv_obj_set_style_text_align(_lbl_tx_val, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_add_flag(_lbl_tx_key, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(_lbl_tx_val, LV_OBJ_FLAG_HIDDEN);
 
     // ── Center top: AZ / EL readout (each centered in its half) ──────────────
     // Thin divider between AZ and EL in the header area only
@@ -371,6 +397,31 @@ inline void update() {
 
     snprintf(buf, sizeof(buf), "%+.0f Hz", s.doppler100);
     lv_label_set_text(lbl_doppler, buf);
+
+    // RX / TX frequencies with live Doppler correction
+    const SatFreq* freq = getSatFreq(s.noradId);
+    if (freq && freq->downlinkMHz > 0.0) {
+        double factor = 1.0 - s.rangeRate / 299792.458;
+        _fmtFreq(buf, sizeof(buf), freq->downlinkMHz * factor, freq->mode);
+        lv_label_set_text(_lbl_rx_val, buf);
+        lv_obj_clear_flag(_lbl_rx_key, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(_lbl_rx_val, LV_OBJ_FLAG_HIDDEN);
+
+        if (freq->uplinkMHz > 0.0) {
+            _fmtFreq(buf, sizeof(buf), freq->uplinkMHz / factor, freq->mode);
+            lv_label_set_text(_lbl_tx_val, buf);
+            lv_obj_clear_flag(_lbl_tx_key, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(_lbl_tx_val, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(_lbl_tx_key, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(_lbl_tx_val, LV_OBJ_FLAG_HIDDEN);
+        }
+    } else {
+        lv_obj_add_flag(_lbl_rx_key, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(_lbl_rx_val, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(_lbl_tx_key, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(_lbl_tx_val, LV_OBJ_FLAG_HIDDEN);
+    }
 
     // Polar: clear canvas for GEO (grid only), rebuild arc for LEO when pass changes
     if (s.isGeo) {
