@@ -2,6 +2,7 @@
 #include <LittleFS.h>
 #include <lvgl.h>
 #include <WebSocketsServer.h>
+#include <ArduinoOTA.h>
 #include "HB9IIUdisplayInit.h"
 #include "lv_driver.h"
 #include "boot_manager.h"
@@ -60,6 +61,12 @@ void setup() {
     BootManager::run();
     Serial.printf("[perf] BootManager::run()            %lu ms\n", millis() - t_boot0);
 
+    // ArduinoOTA — allows "Upload" from PlatformIO env:DISPLAY_OTA over WiFi
+    ArduinoOTA.setHostname("satwebsock");  // must match boot_manager MDNS.begin() hostname
+    // ArduinoOTA.setPassword("secret");  // uncomment to require a password
+    ArduinoOTA.begin();
+    Serial.println("[ota] ArduinoOTA ready  (satwebsock.local:3232)");
+
     {
         auto wsCfg = NVSConfig::loadWsConfig();
         webSocket = new WebSocketsServer(wsCfg.port);
@@ -100,6 +107,7 @@ void setup() {
 }
 
 void loop() {
+    ArduinoOTA.handle();
     uint32_t _t0 = millis();
     lv_timer_handler();
     uint32_t _dt = millis() - _t0;

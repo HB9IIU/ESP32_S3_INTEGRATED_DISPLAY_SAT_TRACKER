@@ -30,18 +30,18 @@
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 enum OtaStatus {
-    OTA_IDLE,
-    OTA_CHECKING,
-    OTA_UP_TO_DATE,
-    OTA_UPDATE_AVAILABLE,
-    OTA_DOWNLOADING_FW,
-    OTA_DOWNLOADING_FS,
-    OTA_SUCCESS,
-    OTA_ERROR
+    GHOTA_IDLE,
+    GHOTA_CHECKING,
+    GHOTA_UP_TO_DATE,
+    GHOTA_UPDATE_AVAILABLE,
+    GHOTA_DOWNLOADING_FW,
+    GHOTA_DOWNLOADING_FS,
+    GHOTA_SUCCESS,
+    GHOTA_ERROR
 };
 
 // ─── Shared state (written by FreeRTOS tasks, read by LVGL timer) ─────────────
-static volatile OtaStatus _ota_status   = OTA_IDLE;
+static volatile OtaStatus _ota_status   = GHOTA_IDLE;
 static volatile int       _ota_progress = 0;          // 0–100
 static char _ota_latest_version[24]     = {0};
 static char _ota_firmware_url[256]      = {0};
@@ -127,7 +127,7 @@ static bool _ota_find_asset_url(const char *json, const char *assetName,
 
 // ─── Check task body ──────────────────────────────────────────────────────────
 static void _ota_check_body() {
-    _ota_status = OTA_CHECKING;
+    _ota_status = GHOTA_CHECKING;
     _ota_progress = 0;
     _ota_error_msg[0] = '\0';
     _ota_latest_version[0] = '\0';
@@ -141,7 +141,7 @@ static void _ota_check_body() {
     }
     if (WiFi.status() != WL_CONNECTED) {
         strncpy(_ota_error_msg, "No WiFi connection", sizeof(_ota_error_msg) - 1);
-        _ota_status = OTA_ERROR;
+        _ota_status = GHOTA_ERROR;
         return;
     }
 
@@ -165,7 +165,7 @@ static void _ota_check_body() {
         if (code != 200) {
             snprintf(_ota_error_msg, sizeof(_ota_error_msg) - 1, "HTTP %d", code);
             http.end();
-            _ota_status = OTA_ERROR;
+            _ota_status = GHOTA_ERROR;
             return;
         }
 
@@ -176,7 +176,7 @@ static void _ota_check_body() {
         char tag[24] = {0};
         if (!_ota_json_str(body.c_str(), "tag_name", tag, sizeof(tag))) {
             strncpy(_ota_error_msg, "No releases found", sizeof(_ota_error_msg) - 1);
-            _ota_status = OTA_ERROR;
+            _ota_status = GHOTA_ERROR;
             return;
         }
 
@@ -187,7 +187,7 @@ static void _ota_check_body() {
         if (!_ota_find_asset_url(body.c_str(), "firmware.bin",
                                   _ota_firmware_url, sizeof(_ota_firmware_url))) {
             strncpy(_ota_error_msg, "No firmware.bin in release", sizeof(_ota_error_msg) - 1);
-            _ota_status = OTA_ERROR;
+            _ota_status = GHOTA_ERROR;
             return;
         }
 
@@ -200,10 +200,10 @@ static void _ota_check_body() {
     }
 
     int cmp = _ota_version_compare(_ota_latest_version, FIRMWARE_VERSION);
-    _ota_status = (cmp > 0) ? OTA_UPDATE_AVAILABLE : OTA_UP_TO_DATE;
+    _ota_status = (cmp > 0) ? GHOTA_UPDATE_AVAILABLE : GHOTA_UP_TO_DATE;
     Serial.printf("[ota] Current=%s  Latest=%s  -> %s\n",
                   FIRMWARE_VERSION, _ota_latest_version,
-                  _ota_status == OTA_UPDATE_AVAILABLE ? "UPDATE_AVAILABLE" : "UP_TO_DATE");
+                  _ota_status == GHOTA_UPDATE_AVAILABLE ? "UPDATE_AVAILABLE" : "UP_TO_DATE");
 }
 
 static void _ota_check_task(void *) {
@@ -288,24 +288,24 @@ static void _ota_download_body() {
 
     // Phase 1: firmware
     _ota_progress = 0;
-    _ota_status = OTA_DOWNLOADING_FW;
+    _ota_status = GHOTA_DOWNLOADING_FW;
     if (!_ota_stream_to_partition(_ota_firmware_url, U_FLASH, "FW")) {
-        _ota_status = OTA_ERROR;
+        _ota_status = GHOTA_ERROR;
         return;
     }
 
     // Phase 2: LittleFS (skipped if no URL found during check)
     if (_ota_littlefs_url[0] != '\0') {
         _ota_progress = 0;
-        _ota_status = OTA_DOWNLOADING_FS;
+        _ota_status = GHOTA_DOWNLOADING_FS;
         if (!_ota_stream_to_partition(_ota_littlefs_url, U_SPIFFS, "FS")) {
-            _ota_status = OTA_ERROR;
+            _ota_status = GHOTA_ERROR;
             return;
         }
     }
 
     _ota_progress = 100;
-    _ota_status = OTA_SUCCESS;
+    _ota_status = GHOTA_SUCCESS;
     delay(2000);
     ESP.restart();
 }
@@ -317,7 +317,7 @@ static void _ota_download_task(void *) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 static void ota_reset() {
-    _ota_status = OTA_IDLE;
+    _ota_status = GHOTA_IDLE;
     _ota_progress = 0;
     _ota_latest_version[0] = '\0';
     _ota_firmware_url[0] = '\0';
@@ -326,20 +326,20 @@ static void ota_reset() {
 }
 
 static void ota_check_for_update() {
-    if (_ota_status == OTA_CHECKING ||
-        _ota_status == OTA_DOWNLOADING_FW ||
-        _ota_status == OTA_DOWNLOADING_FS) return;
+    if (_ota_status == GHOTA_CHECKING ||
+        _ota_status == GHOTA_DOWNLOADING_FW ||
+        _ota_status == GHOTA_DOWNLOADING_FS) return;
     ota_reset();
     TaskHandle_t h = xTaskCreateStatic(_ota_check_task, "ota_chk", 12288, nullptr, 1,
                                         _ota_task_stack, &_ota_task_tcb);
     if (!h) {
         strncpy(_ota_error_msg, "Task create failed", sizeof(_ota_error_msg) - 1);
-        _ota_status = OTA_ERROR;
+        _ota_status = GHOTA_ERROR;
     }
 }
 
 static void ota_start_update() {
-    if (_ota_status != OTA_UPDATE_AVAILABLE) return;
+    if (_ota_status != GHOTA_UPDATE_AVAILABLE) return;
     xTaskCreateStatic(_ota_download_task, "ota_dl", 12288, nullptr, 1,
                       _ota_task_stack, &_ota_task_tcb);
 }

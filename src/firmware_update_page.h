@@ -32,7 +32,7 @@ static lv_obj_t   *_fwp_action_lbl   = nullptr;
 static lv_obj_t   *_fwp_progress_bar = nullptr;
 static lv_obj_t   *_fwp_progress_lbl = nullptr;
 static lv_timer_t *_fwp_timer        = nullptr;
-static OtaStatus   _fwp_last_status  = OTA_IDLE;
+static OtaStatus   _fwp_last_status  = GHOTA_IDLE;
 
 #define FWP_BG      0x1A1C25
 #define FWP_HEADER  0x2A2C38
@@ -53,7 +53,7 @@ static void _fwp_close_done(lv_anim_t *) {
     _fwp_avail_lbl = _fwp_status_lbl = nullptr;
     _fwp_action_btn = _fwp_action_lbl = nullptr;
     _fwp_progress_bar = _fwp_progress_lbl = nullptr;
-    _fwp_last_status = OTA_IDLE;
+    _fwp_last_status = GHOTA_IDLE;
     ota_reset();
     setup_menu_restore_after_subpage();
 }
@@ -61,7 +61,7 @@ static void _fwp_close_done(lv_anim_t *) {
 static void _fwp_close() {
     if (!_fwp_panel) return;
     OtaStatus _st = ota_get_status();
-    if (_st == OTA_DOWNLOADING_FW || _st == OTA_DOWNLOADING_FS) return;
+    if (_st == GHOTA_DOWNLOADING_FW || _st == GHOTA_DOWNLOADING_FS) return;
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, _fwp_panel);
@@ -78,8 +78,8 @@ static void _fwp_back_cb(lv_event_t *)   { _fwp_close(); }
 // ─── Action button callback ───────────────────────────────────────────────────
 static void _fwp_action_cb(lv_event_t *) {
     OtaStatus st = ota_get_status();
-    if (st == OTA_ERROR)            ota_check_for_update();
-    else if (st == OTA_UPDATE_AVAILABLE) ota_start_update();
+    if (st == GHOTA_ERROR)            ota_check_for_update();
+    else if (st == GHOTA_UPDATE_AVAILABLE) ota_start_update();
 }
 
 // ─── Timer: poll OTA state and refresh UI every 300 ms ───────────────────────
@@ -92,25 +92,25 @@ static void _fwp_timer_cb(lv_timer_t *) {
     if (_fwp_avail_lbl) {
         char buf[32];
         switch (st) {
-            case OTA_IDLE:
-            case OTA_CHECKING:
+            case GHOTA_IDLE:
+            case GHOTA_CHECKING:
                 lv_label_set_text(_fwp_avail_lbl, "Checking...");
                 lv_obj_set_style_text_color(_fwp_avail_lbl, lv_color_hex(FWP_DIM), 0);
                 break;
-            case OTA_UPDATE_AVAILABLE:
-            case OTA_DOWNLOADING_FW:
-            case OTA_DOWNLOADING_FS:
-            case OTA_SUCCESS:
+            case GHOTA_UPDATE_AVAILABLE:
+            case GHOTA_DOWNLOADING_FW:
+            case GHOTA_DOWNLOADING_FS:
+            case GHOTA_SUCCESS:
                 snprintf(buf, sizeof(buf), "v%s", ota_latest_version());
                 lv_label_set_text(_fwp_avail_lbl, buf);
                 lv_obj_set_style_text_color(_fwp_avail_lbl, lv_color_hex(FWP_GREEN), 0);
                 break;
-            case OTA_UP_TO_DATE:
+            case GHOTA_UP_TO_DATE:
                 snprintf(buf, sizeof(buf), "v%s", ota_latest_version());
                 lv_label_set_text(_fwp_avail_lbl, buf);
                 lv_obj_set_style_text_color(_fwp_avail_lbl, lv_color_hex(FWP_DIM), 0);
                 break;
-            case OTA_ERROR:
+            case GHOTA_ERROR:
                 lv_label_set_text(_fwp_avail_lbl, "—");
                 lv_obj_set_style_text_color(_fwp_avail_lbl, lv_color_hex(FWP_DIM), 0);
                 break;
@@ -122,16 +122,16 @@ static void _fwp_timer_cb(lv_timer_t *) {
         const char *text  = "";
         uint32_t    color = FWP_DIM;
         switch (st) {
-            case OTA_IDLE:
-            case OTA_CHECKING:
+            case GHOTA_IDLE:
+            case GHOTA_CHECKING:
                 text  = "Contacting GitHub...";
                 color = FWP_DIM;
                 break;
-            case OTA_UP_TO_DATE:
+            case GHOTA_UP_TO_DATE:
                 text  = "Firmware is up to date.";
                 color = FWP_GREEN;
                 break;
-            case OTA_UPDATE_AVAILABLE:
+            case GHOTA_UPDATE_AVAILABLE:
                 text  = "A new firmware version is available.\n\n"
                         "#FFFFFF Tap Install to update.#\n\n"
                         "The display may flicker during the update due to Wi-Fi activity. "
@@ -139,19 +139,19 @@ static void _fwp_timer_cb(lv_timer_t *) {
                         "Please wait until the update is finished.";
                 color = FWP_BLUE;
                 break;
-            case OTA_DOWNLOADING_FW:
+            case GHOTA_DOWNLOADING_FW:
                 text  = "Flashing firmware - do not power off.";
                 color = FWP_BLUE;
                 break;
-            case OTA_DOWNLOADING_FS:
+            case GHOTA_DOWNLOADING_FS:
                 text  = "Flashing filesystem - do not power off.";
                 color = FWP_BLUE;
                 break;
-            case OTA_SUCCESS:
+            case GHOTA_SUCCESS:
                 text  = "Update complete. Restarting...";
                 color = FWP_GREEN;
                 break;
-            case OTA_ERROR:
+            case GHOTA_ERROR:
                 text  = ota_get_error();
                 color = FWP_RED;
                 break;
@@ -162,7 +162,7 @@ static void _fwp_timer_cb(lv_timer_t *) {
 
     // ── Progress bar ───────────────────────────────────────────────────────────
     if (_fwp_progress_bar && _fwp_progress_lbl) {
-        bool show = (st == OTA_DOWNLOADING_FW || st == OTA_DOWNLOADING_FS || st == OTA_SUCCESS);
+        bool show = (st == GHOTA_DOWNLOADING_FW || st == GHOTA_DOWNLOADING_FS || st == GHOTA_SUCCESS);
         if (show) {
             int pct = ota_get_progress();
             lv_bar_set_value(_fwp_progress_bar, pct, LV_ANIM_ON);
@@ -184,28 +184,28 @@ static void _fwp_timer_cb(lv_timer_t *) {
         bool enabled = false;
 
         switch (st) {
-            case OTA_IDLE:
-            case OTA_CHECKING:
+            case GHOTA_IDLE:
+            case GHOTA_CHECKING:
                 btnText = "Checking...";
                 break;
-            case OTA_UP_TO_DATE:
+            case GHOTA_UP_TO_DATE:
                 btnText = "Up to Date";
                 break;
-            case OTA_UPDATE_AVAILABLE:
+            case GHOTA_UPDATE_AVAILABLE:
                 snprintf(installBuf, sizeof(installBuf), "Install v%s", ota_latest_version());
                 btnText = installBuf;
                 enabled = true;
                 break;
-            case OTA_DOWNLOADING_FW:
+            case GHOTA_DOWNLOADING_FW:
                 btnText = "Flashing firmware...";
                 break;
-            case OTA_DOWNLOADING_FS:
+            case GHOTA_DOWNLOADING_FS:
                 btnText = "Flashing filesystem...";
                 break;
-            case OTA_SUCCESS:
+            case GHOTA_SUCCESS:
                 btnText = "Rebooting...";
                 break;
-            case OTA_ERROR:
+            case GHOTA_ERROR:
                 btnText = "Retry";
                 enabled = true;
                 break;
@@ -366,7 +366,7 @@ static void firmware_update_page_open() {
     lv_obj_center(_fwp_action_lbl);
 
     // ── Timer + auto-start check ──────────────────────────────────────────────
-    _fwp_last_status = OTA_IDLE;
+    _fwp_last_status = GHOTA_IDLE;
     _fwp_timer = lv_timer_create(_fwp_timer_cb, 300, nullptr);
     lv_obj_invalidate(_fwp_panel);
     ota_check_for_update();
