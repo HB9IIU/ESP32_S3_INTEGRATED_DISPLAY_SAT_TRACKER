@@ -327,6 +327,30 @@ static void _draw_polar_trail(time_t now) {
         px_prev = px;
         py_prev = py;
     }
+
+    // AOS / LOS time labels just outside the horizon ring endpoints
+    lv_draw_label_dsc_t lbl;
+    lv_draw_label_dsc_init(&lbl);
+    lbl.font  = &lv_font_montserrat_12;
+    lbl.color = lv_color_hex(0x7AAAC0);
+
+    // Fixed corners: AOS bottom-left (left-aligned), LOS bottom-right (right-aligned).
+    // Each label owns half the canvas width so text pins to the outer edge.
+    const int ly    = POL_SIZE - 26;
+    const int half  = POL_SIZE / 2 - 2;
+    char buf[12];
+    struct tm ti;
+
+    lbl.font  = &lv_font_montserrat_20;
+    lbl.align = LV_TEXT_ALIGN_LEFT;
+    localtime_r(&t_rise, &ti);
+    strftime(buf, 6, "%H:%M", &ti); strcat(buf, "\xe2\x86\x91");
+    lv_canvas_draw_text(_polar_canvas, 2, ly, half, &lbl, buf);
+
+    lbl.align = LV_TEXT_ALIGN_RIGHT;
+    localtime_r(&t_set, &ti);
+    strftime(buf, 6, "%H:%M", &ti); strcat(buf, "\xe2\x86\x93");
+    lv_canvas_draw_text(_polar_canvas, POL_SIZE / 2 + 2, ly, half, &lbl, buf);
 }
 
 // Redraw grid + trail together (call on open and on hourly refresh)
