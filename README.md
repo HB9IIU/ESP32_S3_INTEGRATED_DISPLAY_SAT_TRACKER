@@ -300,6 +300,28 @@ Runtime changes from the SETUP screen:
 
 ---
 
+## 3D-Printed Satellite Pointer
+
+Alongside the display tracker I built a small physical pointer — partly for the pure pleasure of designing and printing something mechanical, and partly because I wanted something to guide my eye at night during naked-eye ISS passes. Holding up a phone or squinting at a compass in the dark breaks the moment; a little device sitting on a table that silently follows the satellite does not.
+
+The pointer is a compact 3D-printed unit with two axes driven by 28BYJ-48 stepper motors:
+
+- **Azimuth** — the entire top disk rotates to point toward the satellite's compass direction
+- **Elevation** — a red needle tilts from 0° to 90° to show how high the satellite sits above the horizon
+
+It runs its own ESP32 firmware (`src/pointer.cpp`) that connects to the display tracker via WebSocket and receives live azimuth/elevation JSON once per second. On boot it homes both axes to a known mechanical stop, then tracks continuously. When the satellite drops below the horizon the needle returns to rest and gives a gentle wiggle every 20 seconds to confirm it is still alive.
+
+| | |
+|---|---|
+| ![Assembled pointer](Doc/pointer/Renderings/a.png) | ![Exploded view](Doc/pointer/Renderings/b.png) |
+| ![Internals visible](Doc/pointer/Renderings/c.png) | ![Full exploded](Doc/pointer/Renderings/d.png) |
+
+3D print files (STL) and all renderings are in [`Doc/pointer/`](Doc/pointer/).
+
+[![Watch the pointer in action](https://img.youtube.com/vi/S7pwrg9lIHE/maxresdefault.jpg)](https://www.youtube.com/watch?v=S7pwrg9lIHE)
+
+---
+
 ## License
 
 This repository vendors third-party libraries under `lib/`, including LVGL, LovyanGFX, ArduinoJson, Sgp4, QRCode, WebSockets, and screenshot support code. See the individual license files inside those directories for their terms.
