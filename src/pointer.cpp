@@ -1,4 +1,4 @@
-#include "config.h"
+#include "pointerConfig.h"
 
 #include <Arduino.h>
 #include <ESPmDNS.h>

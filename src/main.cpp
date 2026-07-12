@@ -100,9 +100,11 @@ void setup() {
 }
 
 void loop() {
+    uint32_t _t0 = millis();
     lv_timer_handler();
+    uint32_t _dt = millis() - _t0;
+    if (_dt > 100) Serial.printf("[loop] blocked %lu ms\n", _dt);
     SatTracker::runPassCompute();      // next-pass search for active sat
-    SatTracker::runAllPassCompute();   // next-pass search across all satellites
     screenshot.loop();
     webSocket->loop();
 

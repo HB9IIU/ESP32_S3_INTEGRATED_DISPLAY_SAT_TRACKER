@@ -202,7 +202,7 @@
   <span class="callsign">HB9IIU</span>
   <h1>ESP32-S3 SAT Tracker</h1>
   <p class="subtitle">
-    Real-time satellite tracker &amp; pass predictor<br>
+    Real-time satellite tracker, pass predictor, WebSocket telemetry &amp; OTA updater<br>
     for the Waveshare ESP32-S3-Touch-LCD-7 &amp; Touch-LCD-5
   </p>
   <p class="meta">Version %%VERSION%% &mdash; built %%BUILD_DATE%%</p>
@@ -226,11 +226,13 @@
       <span class="label">Display</span>  <span class="value">800 × 480 RGB parallel · capacitive touch</span>
       <span class="label">Flash</span>    <span class="value">16 MB · 8 MB OPI PSRAM</span>
       <span class="label">Installs</span> <span class="value">Firmware + world map &amp; splash assets (~9.5 MB)</span>
+      <span class="label">Services</span> <span class="value">Screenshot HTTP endpoint + WebSocket az/el telemetry</span>
+      <span class="label">Updates</span>  <span class="value">Browser flashing here, then on-device GitHub Release updates from SETUP</span>
     </div>
 
     <p class="note">
       Requires <strong>Chrome</strong> or <strong>Edge</strong> (Web Serial API) — Firefox is not supported.<br>
-      Connect the device via USB before clicking <em>Install</em>.
+      Connect the device via USB before clicking <em>Install</em>. After flashing, first boot will ask for display orientation and WiFi credentials.
     </p>
   </div>
 
@@ -281,6 +283,13 @@
     </figure>
 
     <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/PASSES-ALL.png"
+           alt="PASS(A) page — upcoming passes across all satellites"
+           onclick="openLightbox(this.src)" />
+      <figcaption>PASS(A) — all-satellite pass board</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
       <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/ISS-SIGHTINGS.png"
            alt="ISS SIGHTINGS page — naked-eye viewing opportunities"
            onclick="openLightbox(this.src)" />
@@ -299,6 +308,20 @@
            alt="Satellite selector overlay — grouped catalogue picker"
            onclick="openLightbox(this.src)" />
       <figcaption>SELECT — satellite catalogue picker</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/WEB-SOCKET.png"
+           alt="WEB SOCKET page — local telemetry server settings"
+           onclick="openLightbox(this.src)" />
+      <figcaption>WEB SOCKET — local telemetry server</figcaption>
+    </figure>
+
+    <figure class="screenshot-item">
+      <img src="https://raw.githubusercontent.com/HB9IIU/ESP32_S3_INTEGRATED_DISPLAY_SAT_TRACKER/main/Doc/Screenshots/FIRMWARE-UPDATE.png"
+           alt="FIRMWARE UPDATE page — on-device GitHub release updater"
+           onclick="openLightbox(this.src)" />
+      <figcaption>FIRMWARE UPDATE — on-device OTA</figcaption>
     </figure>
 
   </div>

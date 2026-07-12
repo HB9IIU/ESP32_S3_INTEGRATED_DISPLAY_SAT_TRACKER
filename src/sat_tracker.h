@@ -97,12 +97,14 @@ static SkyEntry     skyEntries[MAX_SKY];
 static volatile int skyCount = 0;
 static MapEntry     mapEntries[SAT_COUNT];
 static volatile int mapEntryCount = 0;
-static TaskHandle_t _skyTaskHandle = nullptr;
+static TaskHandle_t   _skyTaskHandle = nullptr;
+static volatile bool  _skyNeeded     = true;  // compute once at boot, then on-demand
 
 static Sgp4         _allPassSgp4;
 static AllPassEntry _allPassEntries[MAX_PASSES];
 static int          _allPassEntryCount = 0;
 static bool         _allPassComputeNeeded = true;
+static time_t       _lastAllPassComputeAt = 0;
 
 static time_t jdToUnix(double jd) {
     return (time_t)((jd - 2440587.5) * 86400.0);
@@ -251,6 +253,12 @@ static void computeAllPasses() {
 
             passinfo pd;
             if (!_allPassSgp4.nextpass(&pd, 20)) continue;
+            // If this pass already ended (can happen when searchFrom is in the past),
+            // advance past it and find the actual next future pass.
+            if (jdToUnix(pd.jdstop) <= now) {
+                _allPassSgp4.initpredpoint((unsigned long)(jdToUnix(pd.jdstop) + 120), 0.0);
+                if (!_allPassSgp4.nextpass(&pd, 20)) continue;
+            }
             _allPassSgp4.findsat((unsigned long)jdToUnix(pd.jdmax));
 
             if (cnt < SAT_COUNT) {
@@ -286,6 +294,7 @@ static void computeAllPasses() {
         strncpy(_allPassEntries[i].name, cands[i].name, sizeof(_allPassEntries[i].name));
     }
     _allPassEntryCount = n;
+    time_t done = time(nullptr);
     Serial.printf("[all-passes] %d entries computed in %lu ms\n", n, millis() - t0);
 }
 
@@ -332,7 +341,6 @@ static void computeNextPasses() {
 }
 
 inline bool begin(uint32_t noradId) {
-    uint32_t t_begin0 = millis();
     memset(&state, 0, sizeof(state));
     state.noradId = noradId;
 
@@ -371,12 +379,7 @@ inline bool begin(uint32_t noradId) {
                   state.name, (unsigned long)noradId,
                   state.isGeo ? "  [GEO]" : "");
 
-    uint32_t t_pass0 = millis();
-    if (!state.isGeo) {
-        computeNextPasses();
-        Serial.printf("[perf] SatTracker::begin: pass compute %lu ms\n", millis() - t_pass0);
-    }
-    Serial.printf("[perf] SatTracker::begin: total        %lu ms\n", millis() - t_begin0);
+    if (!state.isGeo) computeNextPasses();
     return true;
 }
 
@@ -455,12 +458,15 @@ inline const PassInfo* getPasses(int& count) {
 }
 
 inline void runAllPassCompute() {
+    time_t now = time(nullptr);
     if (!_allPassComputeNeeded && _allPassEntryCount > 0) {
-        if (_allPassEntries[0].pass.valid && time(nullptr) > _allPassEntries[0].pass.stop + 15)
+        if (_allPassEntries[0].pass.valid && now > _allPassEntries[0].pass.stop + 15)
             _allPassComputeNeeded = true;
     }
     if (!_allPassComputeNeeded) return;
+    if (_lastAllPassComputeAt > 0 && now - _lastAllPassComputeAt < 60) return;
     _allPassComputeNeeded = false;
+    _lastAllPassComputeAt = now;
     computeAllPasses();
 }
 
@@ -469,12 +475,10 @@ inline const AllPassEntry* getAllPassEntries(int& count) {
     return _allPassEntries;
 }
 
+inline void recomputeAllPasses()    { computeAllPasses();    }
+inline void recomputeIssSightings() { computeIssSightings(); }
+
 inline const IssSighting* getIssSightings(int& count) {
-    time_t now = time(nullptr);
-    bool stale = (_issSightingsComputedAt == 0 ||
-                  now - _issSightingsComputedAt > 1800 ||
-                  (issSightingCount > 0 && now > issSightings[0].stop + 60));
-    if (stale) computeIssSightings();
     count = issSightingCount;
     return issSightings;
 }
@@ -491,16 +495,23 @@ inline const MapEntry* getMapEntries(int& count) {
 
 // Runs on Core 0 — LittleFS + SGP4 scan without blocking the LVGL loop.
 static void _skyTaskFn(void*) {
-    NVSConfig::LocationData loc = NVSConfig::loadLocation();
     char     name[30], l1[70], l2[70];
     SkyEntry work[MAX_SKY];
     MapEntry mapWork[SAT_COUNT];
 
     for (;;) {
+        if (!_skyNeeded) {
+            vTaskDelay(pdMS_TO_TICKS(5000));  // check every 5s so SKY nav is responsive
+            continue;
+        }
+        NVSConfig::LocationData loc = NVSConfig::loadLocation();
         uint32_t t0     = millis();
         int      cnt    = 0;
         int      mapCnt = 0;
         time_t   now    = time(nullptr);
+
+        if (!loc.valid)
+            Serial.println("[sky] WARNING: location not set — elevations will be wrong");
 
         for (int g = 0; g < SAT_GROUP_COUNT; g++) {
             for (int i = 0; i < SAT_GROUPS[g].count; i++) {
@@ -536,14 +547,11 @@ static void _skyTaskFn(void*) {
             }
         }
 
-        // LEO first (elevation desc), then GEO (elevation desc)
+        // Highest elevation first (geo sats included regardless of type)
         for (int i = 0; i < cnt - 1; i++)
-            for (int j = i + 1; j < cnt; j++) {
-                bool swap = (work[j].isGeo < work[i].isGeo) ||
-                            (work[j].isGeo == work[i].isGeo &&
-                             work[j].elevation > work[i].elevation);
-                if (swap) std::swap(work[i], work[j]);
-            }
+            for (int j = i + 1; j < cnt; j++)
+                if (work[j].elevation > work[i].elevation)
+                    std::swap(work[i], work[j]);
 
         // Publish atomically
         memcpy(skyEntries, work,    cnt    * sizeof(SkyEntry));
@@ -556,6 +564,8 @@ static void _skyTaskFn(void*) {
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
+
+inline void setSkyNeeded(bool needed) { _skyNeeded = needed; }
 
 inline void startSkyTask() {
     xTaskCreatePinnedToCore(_skyTaskFn, "sky", 8192, nullptr, 1, &_skyTaskHandle, 0);

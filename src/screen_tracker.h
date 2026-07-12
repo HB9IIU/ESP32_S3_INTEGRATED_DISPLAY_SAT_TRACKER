@@ -36,8 +36,10 @@ static void (*onSelectSat)() = nullptr;
 static lv_color_t* _cbuf             = nullptr;
 static lv_obj_t*   _canvas           = nullptr;
 static lv_obj_t*   _marker           = nullptr;
+static lv_obj_t*   _lbl_computing    = nullptr;
 static time_t      _profilePassStart = -1;
 static bool        _blinkOn          = true;
+static bool        _waitingForPass   = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 static void _maidenhead(double lat, double lon, char* out) {
@@ -233,6 +235,13 @@ inline void build(lv_obj_t* panel) {
     lv_canvas_fill_bg(_canvas, lv_color_hex(C_BG), LV_OPA_COVER);
     _drawGrid();
 
+    // "Please wait" label — centred over the polar, shown during pass computation
+    _lbl_computing = mk_label(panel, &lv_font_montserrat_16, C_SEC,
+                              COL_W, PANEL_PCY - 10, "Please wait, computing...");
+    lv_obj_set_width(_lbl_computing, CANVAS_W);
+    lv_obj_set_style_text_align(_lbl_computing, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_add_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
+
     // Compass labels (on panel, drawn above canvas)
     mk_label(panel, F12, C_DIM, PANEL_PCX - 5,          PANEL_PCY - PMAXR - 18, "N");
     mk_label(panel, F12, C_DIM, PANEL_PCX - 4,          PANEL_PCY + PMAXR + 4,  "S");
@@ -304,9 +313,19 @@ inline void build(lv_obj_t* panel) {
     lv_obj_center(sel_lbl);
 }
 
+inline void onSatChanged() {
+    _waitingForPass = true;
+    if (_lbl_computing) lv_obj_clear_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
+}
+
 // ── Update (called every second) ─────────────────────────────────────────────
 inline void update() {
     const SatTracker::State& s = SatTracker::getState();
+
+    if (_waitingForPass && (s.pass.valid || s.isGeo)) {
+        _waitingForPass = false;
+        lv_obj_add_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
+    }
     char   buf[80];
     struct tm ti{};
     time_t t;

@@ -18,6 +18,7 @@ static lv_obj_t* lbl_row_max[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* lbl_row_appears[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* lbl_row_disappears[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* _lbl_empty;
+static lv_obj_t* _lbl_loading = nullptr;
 
 static const int ROW_H = 45;
 static const int HDR_H = 40;
@@ -310,6 +311,15 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_align(_lbl_empty, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_add_flag(_lbl_empty, LV_OBJ_FLAG_HIDDEN);
 
+    _lbl_loading = lv_label_create(panel);
+    lv_label_set_text(_lbl_loading, "Please wait, computing...");
+    lv_obj_set_style_text_font(_lbl_loading, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_lbl_loading, lv_color_hex(C_SEC), 0);
+    lv_obj_set_width(_lbl_loading, CONTENT_W);
+    lv_obj_set_style_text_align(_lbl_loading, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_lbl_loading, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(_lbl_loading, LV_OBJ_FLAG_HIDDEN);
+
     // ── Overlay (built last → renders on top of the table) ────────────────────
     _ov_panel = mk_panel(panel, 0, 0, CONTENT_W, CONTENT_H, C_BG);
     lv_obj_add_flag(_ov_panel, LV_OBJ_FLAG_HIDDEN);
@@ -430,6 +440,14 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_pad_all(_ov_marker, 0, 0);
     lv_obj_clear_flag(_ov_marker, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(_ov_marker, LV_OBJ_FLAG_HIDDEN);
+}
+
+// ── onShow (called once when navigating to this screen) ──────────────────────
+inline void onShow() {
+    lv_obj_clear_flag(_lbl_loading, LV_OBJ_FLAG_HIDDEN);
+    lv_refr_now(lv_disp_get_default());
+    SatTracker::recomputeIssSightings();
+    lv_obj_add_flag(_lbl_loading, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ── Update (called every second) ─────────────────────────────────────────────

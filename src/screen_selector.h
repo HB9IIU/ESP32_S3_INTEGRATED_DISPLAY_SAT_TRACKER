@@ -60,7 +60,7 @@ static void _close_cb(lv_event_t*) {
 static void _goBack_cb(lv_event_t*) {
     lv_obj_add_flag(_satPanel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(_grpPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(_titleLbl, "SELECT GROUP");
+    lv_label_set_text(_titleLbl, "SATELLITE SELECTOR");
     lv_obj_add_flag(_backBtn, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -144,7 +144,6 @@ static void _grpRow_cb(lv_event_t* e) {
 static void _buildItems() {
     if (_built) return;
     _satItemCount = 0;
-    uint32_t t0 = millis();
 
     struct TmpSat { char name[24]; uint32_t id; };
     TmpSat tmp[64];
@@ -211,7 +210,6 @@ static void _buildItems() {
 
     _built = true;
     _builtMySatsRevision = NVSConfig::mySatsRevision();
-    Serial.printf("[perf] ScreenSelector items built      %lu ms\n", millis() - t0);
 }
 
 static void _refreshGroupRows() {
@@ -246,7 +244,7 @@ inline void build(lv_obj_t* scr) {
     lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
     // Title — centered between the back and close controls
-    _titleLbl = mk_label(_overlay, &lv_font_montserrat_18, C_SEC, 72, 13, "SELECT GROUP");
+    _titleLbl = mk_label(_overlay, &lv_font_montserrat_18, C_SEC, 72, 13, "SATELLITE SELECTOR");
     lv_obj_set_width(_titleLbl, 600);
     lv_obj_set_style_text_align(_titleLbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(_titleLbl, LV_ALIGN_TOP_MID, 0, 13);
@@ -398,7 +396,7 @@ inline void open() {
     // Always start at step 1
     lv_obj_add_flag(_satPanel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(_grpPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(_titleLbl, "SELECT GROUP");
+    lv_label_set_text(_titleLbl, "SATELLITE SELECTOR");
     lv_obj_add_flag(_backBtn, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(_overlay);
     lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_HIDDEN);

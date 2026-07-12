@@ -12,21 +12,26 @@ namespace ScreenPassesAll {
 
 static void (*onSatSelected)() = nullptr;
 
+static lv_obj_t* _lbl_computing = nullptr;
+
 static lv_obj_t* lbl_row_sat[SatTracker::MAX_PASSES];
 static lv_obj_t* lbl_row_aos[SatTracker::MAX_PASSES];
 static lv_obj_t* lbl_row_tca[SatTracker::MAX_PASSES];
 static lv_obj_t* lbl_row_los[SatTracker::MAX_PASSES];
 static lv_obj_t* lbl_row_el[SatTracker::MAX_PASSES];
 static lv_obj_t* lbl_row_dur[SatTracker::MAX_PASSES];
-static lv_obj_t* lbl_row_az[SatTracker::MAX_PASSES];
 
 static uint32_t _row_norad[SatTracker::MAX_PASSES] = {};
 
 static const int ROW_H = 45;
 static const int HDR_H = 40;
 
-//                           SAT   AOS   TCA   LOS  MaxEl   Dur    AZ
-static const int COLS_A[] = {  8,   90,  240,  340,  410,   510,  620 };
+//                           SAT   AOS   TCA   LOS
+static const int COLS_A[] = {  8,  280,  468,  548 };
+static const int MAXEL_X  = 616;
+static const int MAXEL_W  = 72;
+static const int DUR_X    = 696;
+static const int DUR_W    = 96;
 
 static void _row_tap_cb(lv_event_t* e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
@@ -38,24 +43,36 @@ static void _row_tap_cb(lv_event_t* e) {
 }
 
 inline void build(lv_obj_t* panel) {
-    const lv_font_t* F14 = &lv_font_montserrat_14;
     const lv_font_t* FT  = &JetBrainsMono_Regular_18;
 
     lv_obj_t* hdr = mk_panel(panel, 0, 0, CONTENT_W, HDR_H, C_HDR);
     mk_panel(panel, 0, HDR_H - 1, CONTENT_W, 1, C_DIV);
 
-    const char* hdr_texts[] = { "SAT", "AOS (local)", "Apogee", "LOS", "Max El", "Duration", "AZ rise \xe2\x86\x92 set" };
-    for (int c = 0; c < 7; c++) {
+    const char* hdr_texts[] = { "SAT", "AOS (local)", "Apogee", "LOS" };
+    for (int c = 0; c < 4; c++) {
         lv_obj_t* h = lv_label_create(hdr);
         lv_label_set_text(h, hdr_texts[c]);
         lv_obj_set_style_text_font(h, FT, 0);
         lv_obj_set_style_text_color(h, lv_color_hex(C_SEC), 0);
-        if (c == 4)
-            lv_obj_align(h, LV_ALIGN_RIGHT_MID, -(CONTENT_W - COLS_A[5] + 30), 0);
-        else if (c == 3)
-            lv_obj_align(h, LV_ALIGN_LEFT_MID, COLS_A[c] + 11, 0);
-        else
-            lv_obj_align(h, LV_ALIGN_LEFT_MID, COLS_A[c], 0);
+        lv_obj_align(h, LV_ALIGN_LEFT_MID, COLS_A[c], 0);
+    }
+    {
+        lv_obj_t* h = lv_label_create(hdr);
+        lv_label_set_text(h, "Max El");
+        lv_obj_set_style_text_font(h, FT, 0);
+        lv_obj_set_style_text_color(h, lv_color_hex(C_SEC), 0);
+        lv_obj_set_width(h, MAXEL_W);
+        lv_obj_set_style_text_align(h, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(h, LV_ALIGN_LEFT_MID, MAXEL_X, 0);
+    }
+    {
+        lv_obj_t* h = lv_label_create(hdr);
+        lv_label_set_text(h, "Duration");
+        lv_obj_set_style_text_font(h, FT, 0);
+        lv_obj_set_style_text_color(h, lv_color_hex(C_SEC), 0);
+        lv_obj_set_width(h, DUR_W);
+        lv_obj_set_style_text_align(h, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(h, LV_ALIGN_LEFT_MID, DUR_X, 0);
     }
 
     lv_obj_t* tbl = mk_panel(panel, 0, HDR_H, CONTENT_W, CONTENT_H - HDR_H, C_BG);
@@ -71,7 +88,7 @@ inline void build(lv_obj_t* panel) {
 
         lbl_row_sat[i] = lv_label_create(row);
         lv_label_set_text(lbl_row_sat[i], "---");
-        lv_obj_set_style_text_font(lbl_row_sat[i], F14, 0);
+        lv_obj_set_style_text_font(lbl_row_sat[i], FT, 0);
         lv_obj_set_style_text_color(lbl_row_sat[i], lv_color_hex(C_DIM), 0);
         lv_obj_align(lbl_row_sat[i], LV_ALIGN_LEFT_MID, COLS_A[0], 0);
 
@@ -97,20 +114,34 @@ inline void build(lv_obj_t* panel) {
         lv_label_set_text(lbl_row_el[i], "--.-");
         lv_obj_set_style_text_font(lbl_row_el[i], FT, 0);
         lv_obj_set_style_text_color(lbl_row_el[i], lv_color_hex(C_GOLD), 0);
-        lv_obj_align(lbl_row_el[i], LV_ALIGN_RIGHT_MID, -(CONTENT_W - COLS_A[5] + 30), 0);
+        lv_obj_set_width(lbl_row_el[i], MAXEL_W);
+        lv_obj_set_style_text_align(lbl_row_el[i], LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(lbl_row_el[i], LV_ALIGN_LEFT_MID, MAXEL_X, 0);
 
         lbl_row_dur[i] = lv_label_create(row);
         lv_label_set_text(lbl_row_dur[i], "--m --s");
         lv_obj_set_style_text_font(lbl_row_dur[i], FT, 0);
         lv_obj_set_style_text_color(lbl_row_dur[i], lv_color_hex(C_DIM), 0);
-        lv_obj_align(lbl_row_dur[i], LV_ALIGN_LEFT_MID, COLS_A[5], 0);
-
-        lbl_row_az[i] = lv_label_create(row);
-        lv_label_set_text(lbl_row_az[i], "---\xc2\xb0 \xe2\x86\x92 ---\xc2\xb0");
-        lv_obj_set_style_text_font(lbl_row_az[i], FT, 0);
-        lv_obj_set_style_text_color(lbl_row_az[i], lv_color_hex(C_DIM), 0);
-        lv_obj_align(lbl_row_az[i], LV_ALIGN_LEFT_MID, COLS_A[6], 0);
+        lv_obj_set_width(lbl_row_dur[i], DUR_W);
+        lv_obj_set_style_text_align(lbl_row_dur[i], LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(lbl_row_dur[i], LV_ALIGN_LEFT_MID, DUR_X, 0);
     }
+
+    _lbl_computing = lv_label_create(panel);
+    lv_label_set_text(_lbl_computing, "Please wait, computing...");
+    lv_obj_set_style_text_font(_lbl_computing, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_lbl_computing, lv_color_hex(C_SEC), 0);
+    lv_obj_set_width(_lbl_computing, CONTENT_W);
+    lv_obj_set_style_text_align(_lbl_computing, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_lbl_computing, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
+}
+
+inline void onShow() {
+    lv_obj_clear_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
+    lv_refr_now(lv_disp_get_default());
+    SatTracker::recomputeAllPasses();
+    lv_obj_add_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
 }
 
 inline void update() {
@@ -125,9 +156,9 @@ inline void update() {
             const SatTracker::PassInfo& p = plist[i].pass;
             _row_norad[i] = plist[i].noradId;
 
-            char sname[8];
-            strncpy(sname, plist[i].name, 7);
-            sname[7] = '\0';
+            char sname[21];
+            strncpy(sname, plist[i].name, 20);
+            sname[20] = '\0';
             lv_label_set_text(lbl_row_sat[i], sname);
             lv_obj_set_style_text_color(lbl_row_sat[i], lv_color_hex(C_DIM), 0);
 
@@ -155,9 +186,6 @@ inline void update() {
             snprintf(buf, sizeof(buf), "%dm %02ds", dur / 60, dur % 60);
             lv_label_set_text(lbl_row_dur[i], buf);
 
-            snprintf(buf, sizeof(buf), "%3.0f\xc2\xb0 \xe2\x86\x92 %3.0f\xc2\xb0", p.azStart, p.azStop);
-            lv_label_set_text(lbl_row_az[i], buf);
-
             bool active = (now >= p.start && now <= p.stop);
             uint32_t timeColor = active ? C_GREEN : C_SEC;
             lv_obj_set_style_text_color(lbl_row_aos[i], lv_color_hex(timeColor), 0);
@@ -171,7 +199,6 @@ inline void update() {
             lv_label_set_text(lbl_row_los[i], "--:--");
             lv_label_set_text(lbl_row_el[i],  "---");
             lv_label_set_text(lbl_row_dur[i], "--m --s");
-            lv_label_set_text(lbl_row_az[i],  "---");
             lv_obj_set_style_text_color(lbl_row_sat[i], lv_color_hex(C_DIM), 0);
             lv_obj_set_style_text_color(lbl_row_aos[i], lv_color_hex(C_DIM), 0);
             lv_obj_set_style_text_color(lbl_row_tca[i], lv_color_hex(C_DIM), 0);

@@ -69,7 +69,10 @@ static void switchTo(ID id) {
         lv_obj_clear_flag(lbl_utc, LV_OBJ_FLAG_HIDDEN);
     }
     updateNavHighlight();
-    if (id == MAP) ScreenMap::onShow();
+    SatTracker::setSkyNeeded(id == POLAR || id == MAP);
+    if (id == MAP)        ScreenMap::onShow();
+    if (id == PASSES_ALL) ScreenPassesAll::onShow();
+    if (id == ISS)        ScreenISS::onShow();
 }
 
 static void sat_name_cb(lv_event_t*) { ScreenSelector::open(); }
@@ -116,7 +119,6 @@ static void timer_cb(lv_timer_t*) {
 // ── Public entry point ────────────────────────────────────────────────────────
 
 inline void build(lv_obj_t* scr) {
-    uint32_t t_build0 = millis();
     lv_obj_set_style_bg_color(scr, lv_color_hex(C_BG), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
@@ -166,41 +168,22 @@ inline void build(lv_obj_t* scr) {
         lv_obj_add_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
     }
 
-    uint32_t t0 = millis();
     ScreenTracker::build(panels[TRACKER]);
-    Serial.printf("[perf] Screen build TRACKER           %lu ms\n", millis() - t0);
     ScreenTracker::onSelectSat = []() { ScreenSelector::open(); };
 
-    t0 = millis();
     ScreenPolar::build(panels[POLAR]);
-    ScreenPolar::onSatSelected    = []() { switchTo(TRACKER); };
-    ScreenSelector::onSatSelected = []() { switchTo(TRACKER); };
-    Serial.printf("[perf] Screen build POLAR             %lu ms\n", millis() - t0);
+    ScreenPolar::onSatSelected    = []() { ScreenTracker::onSatChanged(); switchTo(TRACKER); };
+    ScreenSelector::onSatSelected = []() { ScreenTracker::onSatChanged(); switchTo(TRACKER); };
 
-    t0 = millis();
     ScreenElev::build(panels[ELEV]);
-    Serial.printf("[perf] Screen build ELEV              %lu ms\n", millis() - t0);
-
-    t0 = millis();
     ScreenMap::build(panels[MAP]);
-    Serial.printf("[perf] Screen build MAP               %lu ms\n", millis() - t0);
-
-    t0 = millis();
     ScreenPasses::build(panels[PASSES]);
-    Serial.printf("[perf] Screen build PASSES            %lu ms\n", millis() - t0);
 
-    t0 = millis();
     ScreenPassesAll::build(panels[PASSES_ALL]);
-    ScreenPassesAll::onSatSelected = []() { switchTo(TRACKER); };
-    Serial.printf("[perf] Screen build PASSES_ALL        %lu ms\n", millis() - t0);
+    ScreenPassesAll::onSatSelected = []() { ScreenTracker::onSatChanged(); switchTo(TRACKER); };
 
-    t0 = millis();
     ScreenISS::build(panels[ISS]);
-    Serial.printf("[perf] Screen build ISS               %lu ms\n", millis() - t0);
-
-    t0 = millis();
     ScreenSetup::build(panels[SETUP]);
-    Serial.printf("[perf] Screen build SETUP             %lu ms\n", millis() - t0);
 
     // Selector overlay — built last so it renders above all content panels
     ScreenSelector::build(scr);
@@ -226,7 +209,6 @@ inline void build(lv_obj_t* scr) {
     switchTo(TRACKER);
     lv_timer_create(timer_cb, 1000, nullptr);
     timer_cb(nullptr);   // immediate first fill
-    Serial.printf("[perf] ScreenManager::build total      %lu ms\n", millis() - t_build0);
 }
 
 } // namespace ScreenManager
