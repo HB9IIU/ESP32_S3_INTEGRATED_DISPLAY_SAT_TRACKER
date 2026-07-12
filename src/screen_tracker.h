@@ -5,6 +5,7 @@
 #include <math.h>
 #include "screens_common.h"
 #include "sat_tracker.h"
+#include "moon_widget.h"
 
 LV_FONT_DECLARE(JetBrainsMono_Regular_20);
 LV_FONT_DECLARE(JetBrainsMono_Bold_28);
@@ -30,8 +31,10 @@ static lv_obj_t *lbl_aos, *lbl_los, *lbl_tca, *lbl_duration, *lbl_max_el, *lbl_p
 static lv_obj_t *lbl_countdown, *lbl_los_countdown;
 static lv_obj_t *lbl_az_val, *lbl_el_val;
 static lv_obj_t *_lbl_rx_key, *_lbl_rx_val, *_lbl_tx_key, *_lbl_tx_val;
+static lv_obj_t *_eme_lbl = nullptr;
 
 static void (*onSelectSat)() = nullptr;
+static void (*onMoonTap)()   = nullptr;
 
 // ── Polar canvas state ────────────────────────────────────────────────────────
 static lv_color_t* _cbuf             = nullptr;
@@ -315,12 +318,27 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_width(lbl_los_countdown, COL_W);
     lv_obj_set_style_text_align(lbl_los_countdown, LV_TEXT_ALIGN_CENTER, 0);
 
-    // ── Select Sat button (lower free space of right column) ─────────────────
+    // ── EME / Moon shortcut ────────────────────────────────────────────────────
+    mk_panel(panel, CONTENT_W - COL_W + 1, 246, COL_W - 2, 1, C_DIV);
+
+    {
+        const int MOON_X = CONTENT_W - COL_W + (COL_W - MoonWidget::SIZE) / 2;
+        MoonWidget::build(panel, MOON_X, 252,
+                          []() { if (onMoonTap) onMoonTap(); });
+
+        _eme_lbl = mk_label(panel, FT, C_SEC, CONTENT_W - COL_W, 324);
+        lv_obj_set_width(_eme_lbl, COL_W);
+        lv_obj_set_style_text_align(_eme_lbl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(_eme_lbl, "EME");
+        lv_obj_add_flag(_eme_lbl, LV_OBJ_FLAG_HIDDEN);  // shown after thumbnail decodes
+    }
+
+    // ── Select Sat button ─────────────────────────────────────────────────────
     const int BTN_X = CONTENT_W - COL_W + 20;
     const int BTN_W = COL_W - 40;
     lv_obj_t* sel_btn = lv_obj_create(panel);
     lv_obj_set_size(sel_btn, BTN_W, 40);
-    lv_obj_set_pos(sel_btn, BTN_X, 315);
+    lv_obj_set_pos(sel_btn, BTN_X, 360);
     lv_obj_set_style_bg_color(sel_btn, lv_color_hex(C_HDR), 0);
     lv_obj_set_style_bg_color(sel_btn, lv_color_hex(C_SEC), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(sel_btn, lv_color_hex(C_SEC), 0);
@@ -346,6 +364,13 @@ inline void onSatChanged() {
 
 // ── Update (called every second) ─────────────────────────────────────────────
 inline void update() {
+    MoonWidget::update();
+
+    // Show EME label only once the moon thumbnail has been decoded
+    if (_eme_lbl && MoonWidget::_canvas &&
+        !lv_obj_has_flag(MoonWidget::_canvas, LV_OBJ_FLAG_HIDDEN))
+        lv_obj_clear_flag(_eme_lbl, LV_OBJ_FLAG_HIDDEN);
+
     const SatTracker::State& s = SatTracker::getState();
 
     if (_waitingForPass && (s.pass.valid || s.isGeo)) {

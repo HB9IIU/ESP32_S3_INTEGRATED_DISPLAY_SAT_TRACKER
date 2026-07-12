@@ -15,6 +15,7 @@
 #include "screen_selector.h"
 #include "screen_setup.h"
 #include "screen_websocket.h"
+#include "screen_moon.h"
 
 LV_FONT_DECLARE(JetBrainsMono_Regular_20);
 LV_FONT_DECLARE(JetBrainsMono_Bold_28);
@@ -103,6 +104,7 @@ static void timer_cb(lv_timer_t*) {
         case SETUP:   ScreenSetup::update();   break;
         default: break;
     }
+    ScreenMoon::update();   // runs only when moon overlay is visible
 
     // ── Header clocks ─────────────────────────────────────────────────────────
     struct tm ti{};
@@ -170,6 +172,7 @@ inline void build(lv_obj_t* scr) {
 
     ScreenTracker::build(panels[TRACKER]);
     ScreenTracker::onSelectSat = []() { ScreenSelector::open(); };
+    ScreenTracker::onMoonTap   = []() { ScreenMoon::open(); };
 
     ScreenPolar::build(panels[POLAR]);
     ScreenPolar::onSatSelected    = []() { ScreenTracker::onSatChanged(); switchTo(TRACKER); };
@@ -185,8 +188,9 @@ inline void build(lv_obj_t* scr) {
     ScreenISS::build(panels[ISS]);
     ScreenSetup::build(panels[SETUP]);
 
-    // Selector overlay — built last so it renders above all content panels
+    // Overlays — built last so they render above all content panels
     ScreenSelector::build(scr);
+    ScreenMoon::build(scr);
 
     // ── Nav bar (y = NAV_Y .. 480) ────────────────────────────────────────────
     // Widths computed via integer division so buttons tile exactly to 800 px.
