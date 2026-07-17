@@ -150,6 +150,18 @@ static void _buildItems() {
     uint32_t mySatIds[NVSConfig::MAX_MY_SATS] = {};
     size_t mySatCount = NVSConfig::loadMySats(mySatIds, NVSConfig::MAX_MY_SATS);
 
+    // One-time cleanup for duplicates created by older firmware: catalogue
+    // satellites remain in their built-in group and do not also appear here.
+    bool removedBuiltIn = false;
+    for (size_t i = 0; i < mySatCount; i++) {
+        if (builtInGroupForSat(mySatIds[i])) {
+            NVSConfig::removeMySat(mySatIds[i]);
+            removedBuiltIn = true;
+        }
+    }
+    if (removedBuiltIn)
+        mySatCount = NVSConfig::loadMySats(mySatIds, NVSConfig::MAX_MY_SATS);
+
     // Migrate the currently selected custom satellite from older firmware.
     uint32_t selectedId = NVSConfig::loadSelectedSat(DEFAULT_SAT_ID);
     bool selectedIsBuiltIn = false;
@@ -177,6 +189,7 @@ static void _buildItems() {
 
         for (int i = 0; i < idCount && tmpCount < 64; i++) {
             uint32_t id = ids[i];
+            if (NVSConfig::isSatHidden(id)) continue;
             if (!TLEManager::tleExists(id)) continue;
             TmpSat& t = tmp[tmpCount];
             char name[30], l1[70], l2[70];

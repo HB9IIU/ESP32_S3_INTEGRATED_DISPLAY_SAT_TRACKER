@@ -197,6 +197,93 @@ inline bool addMySat(uint32_t id) {
     return ok;
 }
 
+inline bool removeMySat(uint32_t id) {
+    uint32_t ids[MAX_MY_SATS] = {};
+    size_t count = loadMySats(ids, MAX_MY_SATS);
+    size_t out = 0;
+    bool found = false;
+    for (size_t i = 0; i < count; i++) {
+        if (ids[i] == id) {
+            found = true;
+            continue;
+        }
+        ids[out++] = ids[i];
+    }
+    if (!found) return false;
+
+    Preferences p;
+    p.begin("mysats", false);
+    bool ok;
+    if (out == 0) {
+        ok = p.remove("ids");
+    } else {
+        size_t written = p.putBytes("ids", ids, out * sizeof(uint32_t));
+        ok = written == out * sizeof(uint32_t);
+    }
+    p.end();
+    if (ok) _mySatsRevision++;
+    return ok;
+}
+
+inline size_t loadHiddenSats(uint32_t* ids, size_t capacity) {
+    if (!ids || capacity == 0) return 0;
+    Preferences p;
+    p.begin("hidden_sats", true);
+    size_t bytes = p.getBytesLength("ids");
+    size_t count = bytes / sizeof(uint32_t);
+    if (count > capacity) count = capacity;
+    if (count > 0) p.getBytes("ids", ids, count * sizeof(uint32_t));
+    p.end();
+    return count;
+}
+
+inline bool isSatHidden(uint32_t id) {
+    static uint32_t ids[64] = {};
+    static size_t count = 0;
+    static uint32_t cachedRevision = UINT32_MAX;
+    if (cachedRevision != _mySatsRevision) {
+        count = loadHiddenSats(ids, 64);
+        cachedRevision = _mySatsRevision;
+    }
+    for (size_t i = 0; i < count; i++)
+        if (ids[i] == id) return true;
+    return false;
+}
+
+inline bool hideSat(uint32_t id) {
+    if (!id || isSatHidden(id)) return true;
+    uint32_t ids[64] = {};
+    size_t count = loadHiddenSats(ids, 64);
+    if (count >= 64) return false;
+    ids[count++] = id;
+    Preferences p;
+    p.begin("hidden_sats", false);
+    size_t written = p.putBytes("ids", ids, count * sizeof(uint32_t));
+    p.end();
+    bool ok = written == count * sizeof(uint32_t);
+    if (ok) _mySatsRevision++;
+    return ok;
+}
+
+inline bool unhideSat(uint32_t id) {
+    uint32_t ids[64] = {};
+    size_t count = loadHiddenSats(ids, 64);
+    size_t out = 0;
+    bool found = false;
+    for (size_t i = 0; i < count; i++) {
+        if (ids[i] == id) { found = true; continue; }
+        ids[out++] = ids[i];
+    }
+    if (!found) return false;
+    Preferences p;
+    p.begin("hidden_sats", false);
+    bool ok = out == 0 ? p.remove("ids")
+                       : p.putBytes("ids", ids, out * sizeof(uint32_t)) == out * sizeof(uint32_t);
+    p.end();
+    if (ok) _mySatsRevision++;
+    return ok;
+}
+
 inline void clearMySats() {
     Preferences p;
     p.begin("mysats", false);

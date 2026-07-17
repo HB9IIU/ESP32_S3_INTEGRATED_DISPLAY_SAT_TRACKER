@@ -105,6 +105,15 @@ constexpr SatGroup SAT_GROUPS[] = {
 };
 constexpr int SAT_GROUP_COUNT = _GCOUNT(SAT_GROUPS);
 
+inline const char* builtInGroupForSat(uint32_t id) {
+    for (int g = 0; g < SAT_GROUP_COUNT; g++) {
+        if (!SAT_GROUPS[g].ids) continue;  // MY SATS is dynamic, not built in
+        for (int i = 0; i < SAT_GROUPS[g].count; i++)
+            if (SAT_GROUPS[g].ids[i] == id) return SAT_GROUPS[g].label;
+    }
+    return nullptr;
+}
+
 // ── Satellite frequency database ──────────────────────────────────────────────
 // downlinkMHz : what you tune your receiver to  (0 = unknown)
 // uplinkMHz   : what you transmit on            (0 = receive-only / beacon)

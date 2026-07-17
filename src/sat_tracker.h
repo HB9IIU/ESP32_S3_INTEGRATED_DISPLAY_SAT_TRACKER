@@ -71,6 +71,7 @@ struct State {
     double   inclination  = 0;            // degrees
     bool     isGeo        = false;
     int16_t  satVis       = 0;
+    float    tleAgeHours  = 0;             // hours since the active TLE epoch
     uint32_t orbitNumber  = 0;
     PassInfo pass;
 };
@@ -92,6 +93,8 @@ static bool     _issLoaded = false;
 static long     _revnumAtEpoch = 0;
 static double   _prevRange     = 0.0;
 static time_t   _prevRangeTime = 0;
+static float    _tleAgeAtLoad   = 0.0f;
+static time_t   _tleAgeLoadedAt = 0;
 
 static SkyEntry     skyEntries[MAX_SKY];
 static volatile int skyCount = 0;
@@ -223,7 +226,8 @@ static void computeAllPasses() {
         uint32_t noradId;
         char     name[32];
     };
-    static Candidate cands[SAT_COUNT];
+    static constexpr int MAX_ALL_CANDIDATES = SAT_COUNT + NVSConfig::MAX_MY_SATS;
+    static Candidate cands[MAX_ALL_CANDIDATES];
     int cnt = 0;
 
     NVSConfig::LocationData loc = NVSConfig::loadLocation();
@@ -231,10 +235,28 @@ static void computeAllPasses() {
     time_t now = time(nullptr);
     uint32_t t0 = millis();
 
-    for (int g = 0; g < SAT_GROUP_COUNT; g++) {
-        if (!SAT_GROUPS[g].ids) continue;
-        for (int si = 0; si < SAT_GROUPS[g].count; si++) {
-            uint32_t id = SAT_GROUPS[g].ids[si];
+    // Merge the built-in catalogue with the dynamic MY SATS list. Using one
+    // ID list also guarantees that a NORAD ID is evaluated only once.
+    uint32_t allIds[MAX_ALL_CANDIDATES] = {};
+    int allIdCount = 0;
+    for (int i = 0; i < SAT_COUNT; i++) {
+        if (!NVSConfig::isSatHidden(SAT_LIST[i]))
+            allIds[allIdCount++] = SAT_LIST[i];
+    }
+    uint32_t myIds[NVSConfig::MAX_MY_SATS] = {};
+    size_t myCount = NVSConfig::loadMySats(myIds, NVSConfig::MAX_MY_SATS);
+    for (size_t i = 0; i < myCount && allIdCount < MAX_ALL_CANDIDATES; i++) {
+        if (NVSConfig::isSatHidden(myIds[i])) continue;
+        bool duplicate = false;
+        for (int j = 0; j < allIdCount; j++) {
+            if (allIds[j] == myIds[i]) { duplicate = true; break; }
+        }
+        if (!duplicate) allIds[allIdCount++] = myIds[i];
+    }
+
+    for (int si = 0; si < allIdCount; si++) {
+            uint32_t id = allIds[si];
+            if (NVSConfig::isSatHidden(id)) continue;
             if (!TLEManager::loadTLE(id, tname, l1, l2)) continue;
             if (!_allPassSgp4.init(tname, l1, l2)) continue;
             if (loc.valid) _allPassSgp4.site(loc.lat, loc.lon, 0.0);
@@ -249,19 +271,37 @@ static void computeAllPasses() {
                     if (_allPassSgp4.satEl <= 0.0) { searchFrom = t; break; }
                 }
             }
-            _allPassSgp4.initpredpoint((unsigned long)searchFrom, 0.0);
-
             passinfo pd;
-            if (!_allPassSgp4.nextpass(&pd, 20)) continue;
-            // If this pass already ended (can happen when searchFrom is in the past),
-            // advance past it and find the actual next future pass.
-            if (jdToUnix(pd.jdstop) <= now) {
-                _allPassSgp4.initpredpoint((unsigned long)(jdToUnix(pd.jdstop) + 120), 0.0);
-                if (!_allPassSgp4.nextpass(&pd, 20)) continue;
+            bool validPass = false;
+            time_t cursor = searchFrom;
+            _allPassSgp4.initpredpoint((unsigned long)cursor, 0.0);
+
+            // Some stale/decayed TLEs can make nextpass() return more than one
+            // expired or degenerate result. Keep advancing, but cap the work so
+            // one bad satellite cannot stall the all-passes page.
+            for (int attempt = 0; attempt < 8; attempt++) {
+                if (!_allPassSgp4.nextpass(&pd, 20)) break;
+
+                time_t start = jdToUnix(pd.jdstart);
+                time_t stop  = jdToUnix(pd.jdstop);
+                time_t peak  = jdToUnix(pd.jdmax);
+                bool coherent = start < stop && peak >= start && peak <= stop;
+                bool usable = coherent && stop > now &&
+                              isfinite(pd.maxelevation) && pd.maxelevation > 0.0;
+                if (usable) {
+                    validPass = true;
+                    break;
+                }
+
+                time_t nextCursor = stop + 120;
+                if (nextCursor <= cursor) nextCursor = cursor + 600;
+                cursor = nextCursor;
+                _allPassSgp4.initpredpoint((unsigned long)cursor, 0.0);
             }
+            if (!validPass) continue;
             _allPassSgp4.findsat((unsigned long)jdToUnix(pd.jdmax));
 
-            if (cnt < SAT_COUNT) {
+            if (cnt < MAX_ALL_CANDIDATES) {
                 Candidate& c = cands[cnt];
                 c.pass.valid   = true;
                 c.pass.start   = jdToUnix(pd.jdstart);
@@ -278,7 +318,6 @@ static void computeAllPasses() {
                     c.name[j] = '\0';
                 cnt++;
             }
-        }
     }
 
     // Sort by AOS ascending
@@ -363,14 +402,18 @@ inline bool begin(uint32_t noradId) {
         Serial.printf("[tracker] SGP4 init failed for %s\n", name);
         return false;
     }
-    state.tleLoaded = true;
+    state.tleLoaded   = true;
+    _tleAgeAtLoad     = TLEManager::getTLEAgeHours(noradId);
+    _tleAgeLoadedAt   = time(nullptr);
+    state.tleAgeHours = _tleAgeAtLoad;
 
     NVSConfig::LocationData loc = NVSConfig::loadLocation();
     if (loc.valid)
         sgp4.site(loc.lat, loc.lon, 0.0);
 
     // Quick position fix to detect GEO before deciding on pass compute
-    sgp4.findsat((unsigned long)time(nullptr));
+    time_t now_t = time(nullptr);
+    sgp4.findsat((unsigned long)now_t);
     state.alt         = sgp4.satAlt;
     state.isGeo       = (state.alt > 35000.0);
     state.inclination = sgp4.satrec.inclo * 180.0 / M_PI;
@@ -386,7 +429,8 @@ inline bool begin(uint32_t noradId) {
 inline void update() {
     if (!state.tleLoaded) return;
 
-    sgp4.findsat((unsigned long)time(nullptr));
+    time_t now_t = time(nullptr);
+    sgp4.findsat((unsigned long)now_t);
     state.lat       = sgp4.satLat;
     state.lon       = sgp4.satLon;
     state.alt       = sgp4.satAlt;
@@ -396,9 +440,9 @@ inline void update() {
     state.satVis     = sgp4.satVis;
     state.velocity    = sqrt(sgp4.vo[0]*sgp4.vo[0] + sgp4.vo[1]*sgp4.vo[1] + sgp4.vo[2]*sgp4.vo[2]);
     state.orbitNumber = (uint32_t)(_revnumAtEpoch + 1 + (long)((sgp4.satJd - sgp4.satrec.jdsatepoch) * sgp4.revpday));
+    state.tleAgeHours = _tleAgeAtLoad + (float)(now_t - _tleAgeLoadedAt) / 3600.0f;
 
     // Range rate by 1-second differentiation → Doppler and signal delay
-    time_t now_t = time(nullptr);
     if (_prevRangeTime > 0 && now_t > _prevRangeTime) {
         state.rangeRate  = (sgp4.satDist - _prevRange) / (double)(now_t - _prevRangeTime);
         state.doppler100 = -100.0e6 * state.rangeRate / 299792.458;   // Hz
@@ -516,6 +560,7 @@ static void _skyTaskFn(void*) {
         for (int g = 0; g < SAT_GROUP_COUNT; g++) {
             for (int i = 0; i < SAT_GROUPS[g].count; i++) {
                 uint32_t id = SAT_GROUPS[g].ids[i];
+                if (NVSConfig::isSatHidden(id)) continue;
                 if (!TLEManager::tleExists(id)) continue;
                 if (!TLEManager::loadTLE(id, name, l1, l2)) continue;
                 if (!_skySgp4.init(name, l1, l2)) continue;

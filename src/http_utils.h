@@ -6,8 +6,10 @@
 
 namespace HttpUtils {
 
-inline String get(const char* url, bool secure = false, int retries = 3) {
+inline String get(const char* url, bool secure = false, int retries = 3,
+                  int* finalCode = nullptr) {
     String body;
+    int lastCode = -1;
     for (int attempt = 1; attempt <= retries; attempt++) {
         Serial.printf("[http] GET %s  (attempt %d/%d)\n", url, attempt, retries);
 
@@ -35,6 +37,7 @@ inline String get(const char* url, bool secure = false, int retries = 3) {
                 Serial.println("[http] ERROR: begin() failed");
             } else {
                 code = http.GET();
+                lastCode = code;
                 Serial.printf("[http] Code: %d\n", code);
                 if (code == HTTP_CODE_OK) {
                     body = http.getString();
@@ -46,7 +49,10 @@ inline String get(const char* url, bool secure = false, int retries = 3) {
 
         if (secClient) { delete secClient; secClient = nullptr; }
 
-        if (code == HTTP_CODE_OK) return body;
+        if (code == HTTP_CODE_OK) {
+            if (finalCode) *finalCode = code;
+            return body;
+        }
 
         Serial.printf("[http] ERROR: code %d\n", code);
         if (attempt < retries) {
@@ -54,6 +60,7 @@ inline String get(const char* url, bool secure = false, int retries = 3) {
             delay(2000);
         }
     }
+    if (finalCode) *finalCode = lastCode;
     Serial.println("[http] All attempts failed.");
     return body;
 }

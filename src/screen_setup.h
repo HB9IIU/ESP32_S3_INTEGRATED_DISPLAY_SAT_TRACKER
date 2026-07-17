@@ -10,6 +10,7 @@
 #include "http_utils.h"
 #include "firmware_update_page.h"
 #include "screen_websocket.h"
+#include "screen_manage_list.h"
 
 namespace ScreenSetup {
 
@@ -155,14 +156,26 @@ static void _fetch_cb(lv_event_t*) {
         lv_obj_set_style_text_color(_sat_status, lv_color_hex(C_RED), 0);
         return;
     }
-    bool addedToMySats = NVSConfig::addMySat(id);
+    const char* existingGroup = builtInGroupForSat(id);
+    bool addedToMySats = true;
+    if (existingGroup) {
+        // Remove duplicates saved by older firmware; built-in sats belong only
+        // to their catalogue group.
+        NVSConfig::removeMySat(id);
+        NVSConfig::unhideSat(id);  // entering its NORAD restores a removed built-in
+    } else {
+        addedToMySats = NVSConfig::addMySat(id);
+    }
     NVSConfig::saveSelectedSat(id);
     SatTracker::begin(id);
 
-    char msg[52];
+    char msg[96];
     String sn = tname; sn.trim();
     if (sn.length() > 22) sn = sn.substring(0, 22);
-    if (addedToMySats)
+    if (existingGroup)
+        snprintf(msg, sizeof(msg), "%s already in %s - now tracking",
+                 sn.c_str(), existingGroup);
+    else if (addedToMySats)
         snprintf(msg, sizeof(msg), "%s - now tracking", sn.c_str());
     else
         snprintf(msg, sizeof(msg), "Tracking %s; MY SATS is full", sn.c_str());
@@ -358,7 +371,29 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(fl, &lv_font_montserrat_16, 0);
     lv_obj_center(fl);
 
-    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 358, "");
+    _sat_status = mk_label(panel, &lv_font_montserrat_14, C_DIM, RX + 14, 54, "");
+    lv_obj_set_width(_sat_status, 370);
+
+    // MANAGE LIST button
+    lv_obj_t* manage = lv_obj_create(panel);
+    lv_obj_remove_style_all(manage);
+    lv_obj_set_pos(manage, RX + 12, 356);
+    lv_obj_set_size(manage, 374, 34);
+    lv_obj_set_style_bg_color(manage, lv_color_hex(0x352B42), 0);
+    lv_obj_set_style_bg_opa(manage, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(manage, lv_color_hex(0x59426F), LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(manage, lv_color_hex(0xA77BD4), 0);
+    lv_obj_set_style_border_width(manage, 0, 0);
+    lv_obj_set_style_radius(manage, 4, 0);
+    lv_obj_set_style_pad_all(manage, 0, 0);
+    lv_obj_clear_flag(manage, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(manage, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(manage, [](lv_event_t*) { ScreenManageList::open(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* ml = lv_label_create(manage);
+    lv_label_set_text(ml, "MANAGE LIST");
+    lv_obj_set_style_text_font(ml, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(ml, lv_color_hex(0xD8B8F5), 0);
+    lv_obj_center(ml);
 
     mk_panel(panel, 0, 392, 800, 2, C_DIV);
 
@@ -371,7 +406,7 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_bg_opa(ws, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(ws, lv_color_hex(0x255E84), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(ws, lv_color_hex(C_SEC), 0);
-    lv_obj_set_style_border_width(ws, 2, 0);
+    lv_obj_set_style_border_width(ws, 0, 0);
     lv_obj_set_style_radius(ws, 4, 0);
     lv_obj_set_style_pad_all(ws, 0, 0);
     lv_obj_clear_flag(ws, LV_OBJ_FLAG_SCROLLABLE);
@@ -382,6 +417,10 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_font(wsl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(wsl, lv_color_hex(C_SEC), 0);
     lv_obj_center(wsl);
+}
+
+inline void onShow() {
+    if (_sat_status) lv_label_set_text(_sat_status, "");
 }
 
 inline void update() {}

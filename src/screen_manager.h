@@ -74,6 +74,7 @@ static void switchTo(ID id) {
     if (id == MAP)        ScreenMap::onShow();
     if (id == PASSES_ALL) ScreenPassesAll::onShow();
     if (id == ISS)        ScreenISS::onShow();
+    if (id == SETUP)      ScreenSetup::onShow();
 }
 
 static void sat_name_cb(lv_event_t*) { ScreenSelector::open(); }
@@ -189,6 +190,7 @@ inline void build(lv_obj_t* scr) {
     ScreenSetup::build(panels[SETUP]);
 
     // Overlays — built last so they render above all content panels
+    ScreenManageList::build(scr);
     ScreenSelector::build(scr);
     ScreenMoon::build(scr);
 

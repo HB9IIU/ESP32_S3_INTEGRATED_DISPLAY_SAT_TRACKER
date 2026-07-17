@@ -29,12 +29,42 @@ static void tlePath(uint32_t id, char* buf, size_t len) {
     snprintf(buf, len, "%s/%lu.txt", TLE_DIR, (unsigned long)id);
 }
 
+static void manualCheckPath(uint32_t id, char* buf, size_t len) {
+    snprintf(buf, len, "%s/.check_%lu", TLE_DIR, (unsigned long)id);
+}
+
+inline time_t getLastManualCheck(uint32_t id) {
+    char path[40];
+    manualCheckPath(id, path, sizeof(path));
+    File f = LittleFS.open(path, "r");
+    if (!f) return 0;
+    time_t checked = (time_t)f.parseInt();
+    f.close();
+    return checked;
+}
+
+inline void saveManualCheck(uint32_t id) {
+    char path[40];
+    manualCheckPath(id, path, sizeof(path));
+    File f = LittleFS.open(path, "w");
+    if (f) {
+        f.print((long)time(nullptr));
+        f.close();
+    }
+}
+
 // ── File I/O ──────────────────────────────────────────────────────────────────
 
 inline bool tleExists(uint32_t id) {
     char path[32];
     tlePath(id, path, sizeof(path));
     return LittleFS.exists(path);
+}
+
+inline bool deleteTLE(uint32_t id) {
+    char path[32];
+    tlePath(id, path, sizeof(path));
+    return !LittleFS.exists(path) || LittleFS.remove(path);
 }
 
 static bool storeTLE(uint32_t id, const String& name,
@@ -73,26 +103,34 @@ inline bool loadTLE(uint32_t id, char* name, char* line1, char* line2,
 
 // ── TLE age from embedded epoch ───────────────────────────────────────────────
 
-inline float getTLEAgeHours(uint32_t id) {
-    char name[30], l1[70], l2[70];
-    if (!loadTLE(id, name, l1, l2)) return 9999.0f;
-    if (strlen(l1) < 32) return 9999.0f;
+inline time_t epochFromLine1(const char* line1) {
+    if (!line1 || strlen(line1) < 32 || line1[0] != '1' || line1[1] != ' ')
+        return 0;
 
-    // Line 1: chars 18-19 = 2-digit year, 20-31 = day-of-year + fraction
-    char yearStr[3] = { l1[18], l1[19], '\0' };
+    char yearStr[3] = { line1[18], line1[19], '\0' };
     char dayStr[13] = {};
-    strncpy(dayStr, l1 + 20, 12);
+    strncpy(dayStr, line1 + 20, 12);
 
-    int   yr2      = atoi(yearStr);
-    float epochDay = atof(dayStr);
-    int   fullYear = (yr2 >= 57) ? (1900 + yr2) : (2000 + yr2);
+    int yr2 = atoi(yearStr);
+    double epochDay = atof(dayStr);
+    if (epochDay < 1.0 || epochDay >= 367.0) return 0;
+    int fullYear = (yr2 >= 57) ? (1900 + yr2) : (2000 + yr2);
 
     struct tm t{};
     t.tm_year = fullYear - 1900;
     t.tm_mon  = 0;
     t.tm_mday = 1;
     time_t yearStart = mktime(&t);
-    time_t tleTime   = yearStart + (time_t)((epochDay - 1.0f) * 86400.0f);
+    return yearStart + (time_t)((epochDay - 1.0) * 86400.0);
+}
+
+inline float getTLEAgeHours(uint32_t id) {
+    char name[30], l1[70], l2[70];
+    if (!loadTLE(id, name, l1, l2)) return 9999.0f;
+    if (strlen(l1) < 32) return 9999.0f;
+
+    time_t tleTime = epochFromLine1(l1);
+    if (tleTime == 0) return 9999.0f;
     time_t now       = time(nullptr);
 
     if (now <= tleTime) return 0.0f;
