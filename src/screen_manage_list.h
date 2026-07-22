@@ -13,14 +13,45 @@ namespace ScreenManageList {
 static lv_obj_t* _overlay = nullptr;
 static lv_obj_t* _list = nullptr;
 static lv_obj_t* _countLabel = nullptr;
+static lv_obj_t* _pageLabel = nullptr;
+static lv_obj_t* _prevBtn = nullptr;
+static lv_obj_t* _nextBtn = nullptr;
 static lv_obj_t* _confirm = nullptr;
 static uint32_t _pendingId = 0;
 static char _pendingName[32] = {};
+static constexpr size_t PAGE_SIZE = 5;
+static uint32_t _ids[64] = {};
+static size_t _idCount = 0;
+static size_t _page = 0;
+static void (*onOpen)() = nullptr;
+static void (*onClose)() = nullptr;
 
 static void _buildRows();
 
+static void _loadIds() {
+    _idCount = 0;
+    for (int i = 0; i < SAT_COUNT && _idCount < 64; i++) {
+        uint32_t id = SAT_LIST[i];
+        if (!NVSConfig::isSatHidden(id) && TLEManager::tleExists(id))
+            _ids[_idCount++] = id;
+    }
+    uint32_t personal[NVSConfig::MAX_MY_SATS] = {};
+    size_t personalCount = NVSConfig::loadMySats(personal, NVSConfig::MAX_MY_SATS);
+    for (size_t i = 0; i < personalCount && _idCount < 64; i++) {
+        bool duplicate = false;
+        for (size_t j = 0; j < _idCount; j++)
+            if (_ids[j] == personal[i]) { duplicate = true; break; }
+        if (!duplicate && !NVSConfig::isSatHidden(personal[i]) &&
+            TLEManager::tleExists(personal[i]))
+            _ids[_idCount++] = personal[i];
+    }
+    size_t pageCount = _idCount ? (_idCount + PAGE_SIZE - 1) / PAGE_SIZE : 1;
+    if (_page >= pageCount) _page = pageCount - 1;
+}
+
 static void _close(lv_event_t*) {
     if (_overlay) lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
+    if (onClose) onClose();
 }
 
 static void _cancelDelete(lv_event_t*) {
@@ -53,6 +84,7 @@ static void _confirmDelete(lv_event_t*) {
             SatTracker::begin(fallback);
         }
     }
+    _loadIds();
     _buildRows();
 }
 
@@ -120,29 +152,22 @@ static void _askDelete(lv_event_t* e) {
 static void _buildRows() {
     if (!_list) return;
     lv_obj_clean(_list);
-
-    uint32_t ids[64] = {};
-    size_t count = 0;
-    for (int i = 0; i < SAT_COUNT && count < 64; i++) {
-        uint32_t id = SAT_LIST[i];
-        if (!NVSConfig::isSatHidden(id) && TLEManager::tleExists(id))
-            ids[count++] = id;
-    }
-    uint32_t personal[NVSConfig::MAX_MY_SATS] = {};
-    size_t personalCount = NVSConfig::loadMySats(personal, NVSConfig::MAX_MY_SATS);
-    for (size_t i = 0; i < personalCount && count < 64; i++) {
-        bool duplicate = false;
-        for (size_t j = 0; j < count; j++)
-            if (ids[j] == personal[i]) { duplicate = true; break; }
-        if (!duplicate && !NVSConfig::isSatHidden(personal[i]) && TLEManager::tleExists(personal[i]))
-            ids[count++] = personal[i];
-    }
     char countText[32];
     snprintf(countText, sizeof(countText), "%u satellite%s",
-             (unsigned)count, count == 1 ? "" : "s");
+             (unsigned)_idCount, _idCount == 1 ? "" : "s");
     lv_label_set_text(_countLabel, countText);
 
-    if (count == 0) {
+    size_t pageCount = _idCount ? (_idCount + PAGE_SIZE - 1) / PAGE_SIZE : 1;
+    char pageText[32];
+    snprintf(pageText, sizeof(pageText), "PAGE %u / %u",
+             (unsigned)(_page + 1), (unsigned)pageCount);
+    lv_label_set_text(_pageLabel, pageText);
+    if (_page == 0) lv_obj_add_state(_prevBtn, LV_STATE_DISABLED);
+    else            lv_obj_clear_state(_prevBtn, LV_STATE_DISABLED);
+    if (_page + 1 >= pageCount) lv_obj_add_state(_nextBtn, LV_STATE_DISABLED);
+    else                        lv_obj_clear_state(_nextBtn, LV_STATE_DISABLED);
+
+    if (_idCount == 0) {
         lv_obj_t* empty = mk_label(_list, &lv_font_montserrat_18, C_DIM, 0, 60,
                                    "No satellites are available.");
         lv_obj_set_width(empty, 720);
@@ -150,11 +175,15 @@ static void _buildRows() {
         return;
     }
 
-    for (size_t i = 0; i < count; i++) {
-        uint32_t id = ids[i];
+    size_t first = _page * PAGE_SIZE;
+    size_t last = first + PAGE_SIZE;
+    if (last > _idCount) last = _idCount;
+    for (size_t i = first; i < last; i++) {
+        uint32_t id = _ids[i];
+        size_t visibleRow = i - first;
         lv_obj_t* row = lv_obj_create(_list);
         lv_obj_set_size(row, 720, 52);
-        lv_obj_set_pos(row, 0, (int)i * 56);
+        lv_obj_set_pos(row, 0, (int)visibleRow * 56);
         lv_obj_set_style_bg_color(row, lv_color_hex(i % 2 ? C_HDR : 0x111820), 0);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
         lv_obj_set_style_border_color(row, lv_color_hex(C_DIV), 0);
@@ -163,14 +192,16 @@ static void _buildRows() {
         lv_obj_set_style_pad_all(row, 0, 0);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
-        char name[30], l1[70], l2[70];
+        char name[30] = {}, l1[70] = {}, l2[70] = {};
         if (!TLEManager::loadTLE(id, name, l1, l2))
             snprintf(name, sizeof(name), "NORAD %lu", (unsigned long)id);
 
         lv_obj_t* nl = mk_label(row, &lv_font_montserrat_16, C_VAL, 16, 8, name);
         lv_obj_set_width(nl, 430);
         char meta[80];
-        float age = TLEManager::getTLEAgeHours(id);
+        time_t epoch = TLEManager::epochFromLine1(l1);
+        time_t now = time(nullptr);
+        float age = epoch > 0 && now > epoch ? (float)(now - epoch) / 3600.0f : 0.0f;
         const char* group = builtInGroupForSat(id);
         snprintf(meta, sizeof(meta), "NORAD %lu   TLE %.1f h   %s",
                  (unsigned long)id, age, group ? group : "MY SATS");
@@ -190,9 +221,19 @@ static void _buildRows() {
         lv_obj_set_style_text_color(icon, lv_color_hex(C_RED), 0);
         lv_obj_center(icon);
     }
-    lv_obj_set_height(_list, 310);
-    lv_obj_set_scroll_dir(_list, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(_list, LV_SCROLLBAR_MODE_AUTO);
+}
+
+static void _previousPage(lv_event_t*) {
+    if (_page == 0) return;
+    _page--;
+    _buildRows();
+}
+
+static void _nextPage(lv_event_t*) {
+    size_t pageCount = _idCount ? (_idCount + PAGE_SIZE - 1) / PAGE_SIZE : 1;
+    if (_page + 1 >= pageCount) return;
+    _page++;
+    _buildRows();
 }
 
 inline void build(lv_obj_t* scr) {
@@ -206,7 +247,7 @@ inline void build(lv_obj_t* scr) {
     lv_obj_set_style_pad_all(_overlay, 0, 0);
     lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t* title = mk_label(_overlay, &lv_font_montserrat_20, C_SEC, 20, 13, "MANAGE LIST");
+    lv_obj_t* title = mk_label(_overlay, &lv_font_montserrat_20, C_SEC, 20, 13, "MANAGE SATELLITES");
     lv_obj_set_width(title, 760);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -224,6 +265,9 @@ inline void build(lv_obj_t* scr) {
 
     mk_panel(_overlay, 0, 50, CONTENT_W, 1, C_DIV);
     _countLabel = mk_label(_overlay, &lv_font_montserrat_14, C_DIM, 40, 64, "");
+    _pageLabel = mk_label(_overlay, &lv_font_montserrat_14, C_DIM, 610, 64, "");
+    lv_obj_set_width(_pageLabel, 150);
+    lv_obj_set_style_text_align(_pageLabel, LV_TEXT_ALIGN_RIGHT, 0);
 
     _list = lv_obj_create(_overlay);
     lv_obj_set_size(_list, 720, 310);
@@ -231,11 +275,29 @@ inline void build(lv_obj_t* scr) {
     lv_obj_set_style_bg_opa(_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_list, 0, 0);
     lv_obj_set_style_pad_all(_list, 0, 0);
+
+    _prevBtn = lv_btn_create(_overlay);
+    lv_obj_set_size(_prevBtn, 160, 42);
+    lv_obj_set_pos(_prevBtn, 210, 390);
+    lv_obj_add_event_cb(_prevBtn, _previousPage, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* prevLabel = lv_label_create(_prevBtn);
+    lv_label_set_text(prevLabel, LV_SYMBOL_LEFT "  PREV");
+    lv_obj_center(prevLabel);
+
+    _nextBtn = lv_btn_create(_overlay);
+    lv_obj_set_size(_nextBtn, 160, 42);
+    lv_obj_set_pos(_nextBtn, 430, 390);
+    lv_obj_add_event_cb(_nextBtn, _nextPage, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* nextLabel = lv_label_create(_nextBtn);
+    lv_label_set_text(nextLabel, "NEXT  " LV_SYMBOL_RIGHT);
+    lv_obj_center(nextLabel);
     lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
 }
 
 inline void open() {
     if (!_overlay) return;
+    if (onOpen) onOpen();
+    _loadIds();
     _buildRows();
     lv_obj_move_foreground(_overlay);
     lv_obj_clear_flag(_overlay, LV_OBJ_FLAG_HIDDEN);

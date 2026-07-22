@@ -40,6 +40,33 @@ static lv_obj_t *_tle_check_btn = nullptr;
 static lv_obj_t *_tle_close_btn = nullptr;
 static lv_obj_t *_tle_close_label = nullptr;
 static lv_obj_t *_tracker_panel = nullptr;
+static uint32_t  _check_cache_id = 0;
+static time_t    _check_cache_success = 0;
+
+static time_t _lastSuccessfulCheck(uint32_t id, bool force = false) {
+    if (force || id != _check_cache_id) {
+        _check_cache_id = id;
+        _check_cache_success = TLEManager::getLastSatSuccess(id);
+    }
+    return _check_cache_success;
+}
+
+static void _setLastSuccessfulCheck(uint32_t id, time_t value) {
+    _check_cache_id = id;
+    _check_cache_success = value;
+}
+
+static void _formatAgeHHMM(float hours, char* out, size_t len) {
+    if (!out || len == 0) return;
+    if (hours < 0.0f || !isfinite(hours)) {
+        snprintf(out, len, "--:--");
+        return;
+    }
+    uint32_t totalMinutes = (uint32_t)(hours * 60.0f);
+    snprintf(out, len, "%02lu:%02lu",
+             (unsigned long)(totalMinutes / 60),
+             (unsigned long)(totalMinutes % 60));
+}
 
 static void (*onSelectSat)() = nullptr;
 static void (*onMoonTap)()   = nullptr;
@@ -137,11 +164,15 @@ static void _checkTleUpdate(lv_event_t*) {
 
     if (newEpoch <= oldEpoch) {
         TLEManager::saveSatSuccess(id);
+        _setLastSuccessfulCheck(id, time(nullptr));
+        char oldText[16], newText[16];
+        _formatAgeHHMM(oldAge, oldText, sizeof(oldText));
+        _formatAgeHHMM(newAge, newText, sizeof(newText));
         snprintf(msg, sizeof(msg),
                  newEpoch == oldEpoch
-                     ? "Already up to date.\nLocal: %.1f h   Server: %.1f h\nNo file was replaced."
-                     : "Server TLE is not newer.\nLocal: %.1f h   Server: %.1f h\nLocal TLE retained.",
-                 oldAge, newAge);
+                     ? "Already up to date.\nLocal: %s   Server: %s\nNo file was replaced."
+                     : "Server TLE is not newer.\nLocal: %s   Server: %s\nLocal TLE retained.",
+                 oldText, newText);
         lv_label_set_text(_tle_status, msg);
         lv_obj_set_style_text_color(_tle_status, lv_color_hex(C_GREEN), 0);
         return;
@@ -153,6 +184,7 @@ static void _checkTleUpdate(lv_event_t*) {
         return;
     }
     TLEManager::saveSatSuccess(id);
+    _setLastSuccessfulCheck(id, time(nullptr));
 
     if (!SatTracker::begin(id)) {
         lv_label_set_text(_tle_status, "TLE saved, but tracker reload failed. Restart the device.");
@@ -161,9 +193,12 @@ static void _checkTleUpdate(lv_event_t*) {
     }
     _waitingForPass = true;
     if (_lbl_computing) lv_obj_clear_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
+    char oldText[16], newText[16];
+    _formatAgeHHMM(oldAge, oldText, sizeof(oldText));
+    _formatAgeHHMM(newAge, newText, sizeof(newText));
     snprintf(msg, sizeof(msg),
-             "Newer TLE installed.\nPrevious age: %.1f h   New age: %.1f h\nTracking and passes recalculated.",
-             oldAge, newAge);
+             "Newer TLE installed.\nPrevious age: %s   New age: %s\nTracking and passes recalculated.",
+             oldText, newText);
     lv_label_set_text(_tle_status, msg);
     lv_obj_set_style_text_color(_tle_status, lv_color_hex(C_GREEN), 0);
 }
@@ -198,16 +233,19 @@ static void _openTleModal(lv_event_t*) {
     lv_obj_set_width(title, 520);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
 
-    time_t lastSuccess = TLEManager::getLastSatSuccess(s.noradId);
+    time_t lastSuccess = _lastSuccessfulCheck(s.noradId, true);
     float checkedAgeH = lastSuccess > 0 && time(nullptr) >= lastSuccess
                       ? (float)(time(nullptr) - lastSuccess) / 3600.0f : -1.0f;
+    char tleAgeText[16], checkedAgeText[16];
+    _formatAgeHHMM(s.tleAgeHours, tleAgeText, sizeof(tleAgeText));
+    _formatAgeHHMM(checkedAgeH, checkedAgeText, sizeof(checkedAgeText));
     char info[180];
     if (checkedAgeH >= 0.0f)
-        snprintf(info, sizeof(info), "%s\nNORAD %lu     TLE age: %.1f h     Last check: %.1f h ago",
-                 s.name, (unsigned long)s.noradId, s.tleAgeHours, checkedAgeH);
+        snprintf(info, sizeof(info), "%s\nNORAD %lu     TLE age: %s     Last check: %s ago",
+                 s.name, (unsigned long)s.noradId, tleAgeText, checkedAgeText);
     else
-        snprintf(info, sizeof(info), "%s\nNORAD %lu     TLE age: %.1f h     Last check: --",
-                 s.name, (unsigned long)s.noradId, s.tleAgeHours);
+        snprintf(info, sizeof(info), "%s\nNORAD %lu     TLE age: %s     Last check: --:--",
+                 s.name, (unsigned long)s.noradId, tleAgeText);
     lv_obj_t* details = mk_label(box, &lv_font_montserrat_16, C_VAL, 20, 50, info);
     lv_obj_set_width(details, 520);
     lv_obj_set_style_text_align(details, LV_TEXT_ALIGN_CENTER, 0);
@@ -585,6 +623,8 @@ inline void build(lv_obj_t* panel) {
 }
 
 inline void onSatChanged() {
+    _check_cache_id = 0;
+    _check_cache_success = 0;
     _waitingForPass = true;
     if (_lbl_computing) lv_obj_clear_flag(_lbl_computing, LV_OBJ_FLAG_HIDDEN);
 }
@@ -620,15 +660,18 @@ inline void update() {
     lv_obj_set_style_text_color(lbl_el_val, lv_color_hex(above ? C_GREEN : C_RED), 0);
 
     // Left: telemetry
-    snprintf(buf, sizeof(buf), "%.1f h", s.tleAgeHours);
+    _formatAgeHHMM(s.tleAgeHours, buf, sizeof(buf));
     lv_label_set_text(lbl_tle_age, buf);
 
-    time_t lastCheck = TLEManager::getLastSatSuccess(s.noradId);
+    // Read LittleFS only when the selected satellite changes. The timestamp is
+    // then kept in RAM; opening a file from this one-second UI loop made every
+    // screen feel sluggish.
+    time_t lastCheck = _lastSuccessfulCheck(s.noradId);
     if (lastCheck > 0 && now >= lastCheck) {
         float checkAgeH = (float)(now - lastCheck) / 3600.0f;
-        snprintf(buf, sizeof(buf), "%.1f h", checkAgeH);
+        _formatAgeHHMM(checkAgeH, buf, sizeof(buf));
     } else {
-        snprintf(buf, sizeof(buf), "--");
+        snprintf(buf, sizeof(buf), "--:--");
     }
     lv_label_set_text(lbl_tle_check, buf);
 

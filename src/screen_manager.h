@@ -90,7 +90,7 @@ static void timer_cb(lv_timer_t*) {
     // ── Persistent header: satellite name ────────────────────────────────────
     const SatTracker::State& s = SatTracker::getState();
     lv_label_set_text(lbl_sat_name,
-        current == ISS        ? "ISS SIGHTINGS"  :
+        current == ISS        ? ScreenISS::title()  :
         current == PASSES_ALL ? "ALL SATELLITES" : s.name);
 
     // ── Active screen update ──────────────────────────────────────────────────
@@ -191,6 +191,14 @@ inline void build(lv_obj_t* scr) {
 
     // Overlays — built last so they render above all content panels
     ScreenManageList::build(scr);
+    ScreenManageList::onOpen = []() {
+        for (int i = 0; i < COUNT; i++)
+            lv_obj_add_flag(nav_btns[i], LV_OBJ_FLAG_HIDDEN);
+    };
+    ScreenManageList::onClose = []() {
+        for (int i = 0; i < COUNT; i++)
+            lv_obj_clear_flag(nav_btns[i], LV_OBJ_FLAG_HIDDEN);
+    };
     ScreenSelector::build(scr);
     ScreenMoon::build(scr);
 

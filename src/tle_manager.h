@@ -15,11 +15,17 @@
 
 namespace TLEManager {
 
+static volatile uint32_t _tleRevision = 0;
+
+inline uint32_t tleRevision() { return _tleRevision; }
+
 struct Result {
     int  groupsFetched;
     int  groupsFailed;
     int  satellitesStored;
     int  satellitesMissing;
+    int  satellitesExpected;
+    int  satellitesAvailable;
     bool skipped;   // true = data was fresh, no download attempted
 };
 
@@ -122,7 +128,10 @@ inline bool tleExists(uint32_t id) {
 inline bool deleteTLE(uint32_t id) {
     char path[32];
     tlePath(id, path, sizeof(path));
-    return !LittleFS.exists(path) || LittleFS.remove(path);
+    if (!LittleFS.exists(path)) return true;
+    bool ok = LittleFS.remove(path);
+    if (ok) _tleRevision++;
+    return ok;
 }
 
 static bool storeTLE(uint32_t id, const String& name,
@@ -138,6 +147,7 @@ static bool storeTLE(uint32_t id, const String& name,
     f.println(line1);
     f.println(line2);
     f.close();
+    _tleRevision++;
     return true;
 }
 
@@ -217,7 +227,7 @@ static void saveLastFetchTime() {
 
 static bool inSatList(uint32_t id) {
     for (int i = 0; i < SAT_COUNT; i++)
-        if (SAT_LIST[i] == id) return true;
+        if (SAT_LIST[i] == id) return !NVSConfig::isSatHidden(id);
     return false;
 }
 
@@ -327,9 +337,11 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
         Serial.println("[tle] Created /tle directory");
     }
 
-    // Count how many satellites we already have on disk
+    // Count only active catalogue satellites. A deliberately removed built-in
+    // satellite is hidden in NVS and must not be reported as a missing TLE.
     int missing = 0;
     for (int i = 0; i < SAT_COUNT; i++) {
+        if (NVSConfig::isSatHidden(SAT_LIST[i])) continue;
         if (!tleExists(SAT_LIST[i])) {
             Serial.printf("[tle] Missing TLE: NORAD %lu\n", (unsigned long)SAT_LIST[i]);
             missing++;
@@ -427,13 +439,26 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
         Serial.println("[tle] Fetch timestamp saved.");
     }
 
-    // Final missing count
+    // Final inventory: active built-ins plus personal NVS satellites. Removed
+    // catalogue entries are intentionally absent, not missing.
     r.satellitesMissing = 0;
-    for (int i = 0; i < SAT_COUNT; i++)
-        if (!tleExists(SAT_LIST[i])) r.satellitesMissing++;
+    r.satellitesExpected = 0;
+    for (int i = 0; i < SAT_COUNT; i++) {
+        uint32_t id = SAT_LIST[i];
+        if (NVSConfig::isSatHidden(id)) continue;
+        r.satellitesExpected++;
+        if (!tleExists(id)) r.satellitesMissing++;
+    }
+    for (size_t i = 0; i < personalCount; i++) {
+        uint32_t id = personal[i];
+        if (inSatList(id) || NVSConfig::isSatHidden(id)) continue;
+        r.satellitesExpected++;
+        if (!tleExists(id)) r.satellitesMissing++;
+    }
+    r.satellitesAvailable = r.satellitesExpected - r.satellitesMissing;
 
     Serial.printf("[tle] ── Complete: %d/%d available  |  %d missing\n",
-                  SAT_COUNT - r.satellitesMissing, SAT_COUNT, r.satellitesMissing);
+                  r.satellitesAvailable, r.satellitesExpected, r.satellitesMissing);
     return r;
 }
 

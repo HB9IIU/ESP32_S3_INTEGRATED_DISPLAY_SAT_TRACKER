@@ -27,7 +27,7 @@ extern LGFX tft;
 #define WIFI_OK_STATUS_MS 800
 #define TZ_STATUS_MS 800
 #define NTP_STATUS_MS 800
-#define TLE_STATUS_MS 800
+#define TLE_STATUS_MS 3000
 #define BOOT_END_PAUSE_MS 0
 
 namespace BootManager {
@@ -457,17 +457,21 @@ inline void run() {
                   tleResult.satellitesMissing, tleResult.groupsFailed);
 
     {
-        char msg[80];
-        const int ok = SAT_COUNT - tleResult.satellitesMissing;
+        char msg[128];
         if (tleResult.satellitesMissing == 0) {
             if (tleResult.skipped)
-                snprintf(msg, sizeof(msg), "TLE OK - data fresh, %d sats", SAT_COUNT);
+                snprintf(msg, sizeof(msg),
+                         "TLE cache fresh - all sources checked within 24 h (%d satellites)",
+                         tleResult.satellitesAvailable);
             else
-                snprintf(msg, sizeof(msg), "TLE updated - %d satellites", SAT_COUNT);
+                snprintf(msg, sizeof(msg),
+                         "TLE refresh complete - sources checked, %d satellites available",
+                         tleResult.satellitesAvailable);
             drawStatus(msg, 0x00FF88);
         } else {
             snprintf(msg, sizeof(msg), "TLE: %d/%d ok  (%d missing)",
-                     ok, SAT_COUNT, tleResult.satellitesMissing);
+                     tleResult.satellitesAvailable, tleResult.satellitesExpected,
+                     tleResult.satellitesMissing);
             drawStatus(msg, 0xFFAA00);
         }
         delay(TLE_STATUS_MS);

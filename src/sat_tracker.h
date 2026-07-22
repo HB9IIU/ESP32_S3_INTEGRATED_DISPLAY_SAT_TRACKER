@@ -79,6 +79,7 @@ struct State {
 static const int MAX_PASSES = 8;
 static const int MAX_SKY    = 16;
 static const int MAX_ISS_SIGHTINGS = 8;
+static const int ISS_SIGHTING_DAYS = 7;
 
 static Sgp4    sgp4;
 static Sgp4    _skySgp4;
@@ -157,6 +158,7 @@ static void computeIssSightings() {
     uint32_t t0 = millis();
     passinfo pd;
     time_t now = time(nullptr);
+    time_t searchUntil = now + (time_t)ISS_SIGHTING_DAYS * 86400;
     time_t searchFrom = now;
 
     _issSgp4.findsat((unsigned long)now);
@@ -173,11 +175,15 @@ static void computeIssSightings() {
         return;
     }
 
-    for (int attempt = 0; attempt < 48 && issSightingCount < MAX_ISS_SIGHTINGS; attempt++) {
+    // Use a fixed prediction window instead of searching arbitrarily far into
+    // the future just to fill the table. TLE predictions become less reliable
+    // with time, and some weeks genuinely contain fewer visible opportunities.
+    for (int attempt = 0; attempt < 160 && issSightingCount < MAX_ISS_SIGHTINGS; attempt++) {
         if (!_issSgp4.nextpass(&pd, 20)) break;
 
         time_t passStart = jdToUnix(pd.jdstart);
         time_t passStop  = jdToUnix(pd.jdstop);
+        if (passStart > searchUntil) break;
         IssSighting sight;
         double firstEl = 0.0, firstAz = 0.0, lastEl = 0.0, lastAz = 0.0;
 
@@ -403,7 +409,10 @@ inline bool begin(uint32_t noradId) {
         return false;
     }
     state.tleLoaded   = true;
-    _tleAgeAtLoad     = TLEManager::getTLEAgeHours(noradId);
+    time_t tleEpoch   = TLEManager::epochFromLine1(l1);
+    time_t nowEpoch   = time(nullptr);
+    _tleAgeAtLoad     = tleEpoch > 0 && nowEpoch > tleEpoch
+                      ? (float)(nowEpoch - tleEpoch) / 3600.0f : 0.0f;
     _tleAgeLoadedAt   = time(nullptr);
     state.tleAgeHours = _tleAgeAtLoad;
 
@@ -521,6 +530,11 @@ inline const AllPassEntry* getAllPassEntries(int& count) {
 
 inline void recomputeAllPasses()    { computeAllPasses();    }
 inline void recomputeIssSightings() { computeIssSightings(); }
+inline bool issSightingsAreFresh(time_t maxAge = 6 * 3600) {
+    time_t now = time(nullptr);
+    return issSightingCount > 0 && _issSightingsComputedAt > 0 &&
+           now >= _issSightingsComputedAt && now - _issSightingsComputedAt < maxAge;
+}
 
 inline const IssSighting* getIssSightings(int& count) {
     count = issSightingCount;
@@ -537,11 +551,26 @@ inline const MapEntry* getMapEntries(int& count) {
     return mapEntries;
 }
 
-// Runs on Core 0 — LittleFS + SGP4 scan without blocking the LVGL loop.
+// Runs on Core 0 — TLEs are cached in PSRAM; repeated scans do no filesystem I/O.
 static void _skyTaskFn(void*) {
-    char     name[30], l1[70], l2[70];
+    struct CachedTle {
+        uint32_t id;
+        char name[30];
+        char l1[70];
+        char l2[70];
+    };
+    CachedTle* tleCache = (CachedTle*)ps_malloc(sizeof(CachedTle) * SAT_COUNT);
+    int tleCacheCount = 0;
+    uint32_t cachedTleRevision = UINT32_MAX;
+    uint32_t cachedListRevision = UINT32_MAX;
     SkyEntry work[MAX_SKY];
     MapEntry mapWork[SAT_COUNT];
+
+    if (!tleCache) {
+        Serial.println("[sky] PSRAM TLE cache allocation failed");
+        vTaskDelete(nullptr);
+        return;
+    }
 
     for (;;) {
         if (!_skyNeeded) {
@@ -557,13 +586,34 @@ static void _skyTaskFn(void*) {
         if (!loc.valid)
             Serial.println("[sky] WARNING: location not set — elevations will be wrong");
 
-        for (int g = 0; g < SAT_GROUP_COUNT; g++) {
-            for (int i = 0; i < SAT_GROUPS[g].count; i++) {
-                uint32_t id = SAT_GROUPS[g].ids[i];
+        uint32_t tleRevision = TLEManager::tleRevision();
+        uint32_t listRevision = NVSConfig::mySatsRevision();
+        if (tleRevision != cachedTleRevision || listRevision != cachedListRevision) {
+            tleCacheCount = 0;
+            for (int g = 0; g < SAT_GROUP_COUNT; g++) {
+                for (int i = 0; i < SAT_GROUPS[g].count && tleCacheCount < SAT_COUNT; i++) {
+                    uint32_t id = SAT_GROUPS[g].ids[i];
+                    if (NVSConfig::isSatHidden(id)) continue;
+                    bool duplicate = false;
+                    for (int j = 0; j < tleCacheCount; j++)
+                        if (tleCache[j].id == id) { duplicate = true; break; }
+                    if (duplicate || !TLEManager::tleExists(id)) continue;
+                    CachedTle& cached = tleCache[tleCacheCount];
+                    if (!TLEManager::loadTLE(id, cached.name, cached.l1, cached.l2)) continue;
+                    cached.id = id;
+                    tleCacheCount++;
+                }
+            }
+            cachedTleRevision = tleRevision;
+            cachedListRevision = listRevision;
+            Serial.printf("[sky] TLE cache refreshed in PSRAM: %d satellites\n", tleCacheCount);
+        }
+
+        for (int i = 0; i < tleCacheCount; i++) {
+                CachedTle& cached = tleCache[i];
+                uint32_t id = cached.id;
                 if (NVSConfig::isSatHidden(id)) continue;
-                if (!TLEManager::tleExists(id)) continue;
-                if (!TLEManager::loadTLE(id, name, l1, l2)) continue;
-                if (!_skySgp4.init(name, l1, l2)) continue;
+                if (!_skySgp4.init(cached.name, cached.l1, cached.l2)) continue;
                 if (loc.valid) _skySgp4.site(loc.lat, loc.lon, 0.0);
                 _skySgp4.findsat((unsigned long)now);
 
@@ -580,7 +630,7 @@ static void _skyTaskFn(void*) {
                 // Above-horizon satellites → sky entries
                 if (_skySgp4.satEl <= 0.0 || cnt >= MAX_SKY) continue;
                 SkyEntry& e = work[cnt];
-                strncpy(e.name, name, sizeof(e.name) - 1);
+                strncpy(e.name, cached.name, sizeof(e.name) - 1);
                 e.name[sizeof(e.name) - 1] = '\0';
                 for (int j = (int)strlen(e.name) - 1; j >= 0 && e.name[j] == ' '; j--)
                     e.name[j] = '\0';
@@ -589,7 +639,6 @@ static void _skyTaskFn(void*) {
                 e.azimuth   = _skySgp4.satAz;
                 e.isGeo     = (_skySgp4.satAlt > 35000.0);
                 cnt++;
-            }
         }
 
         // Highest elevation first (geo sats included regardless of type)

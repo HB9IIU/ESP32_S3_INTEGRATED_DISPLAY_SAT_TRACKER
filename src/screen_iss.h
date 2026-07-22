@@ -17,7 +17,9 @@ static lv_obj_t* lbl_row_dur[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* lbl_row_max[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* lbl_row_appears[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* lbl_row_disappears[SatTracker::MAX_ISS_SIGHTINGS];
+static lv_obj_t* sighting_rows[SatTracker::MAX_ISS_SIGHTINGS];
 static lv_obj_t* _lbl_empty;
+static lv_obj_t* _lbl_no_more = nullptr;
 static lv_obj_t* _lbl_loading = nullptr;
 
 static const int ROW_H = 45;
@@ -261,6 +263,7 @@ inline void build(lv_obj_t* panel) {
         int y = HDR_H + i * ROW_H;
         uint32_t bg = (i % 2 == 0) ? C_HDR : C_BG;
         lv_obj_t* row = mk_panel(panel, 0, y, CONTENT_W, ROW_H, bg);
+        sighting_rows[i] = row;
         mk_panel(row, 0, ROW_H - 1, CONTENT_W, 1, C_DIV);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, _row_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
@@ -306,10 +309,16 @@ inline void build(lv_obj_t* panel) {
     }
 
     _lbl_empty = mk_label(panel, &lv_font_montserrat_18, C_DIM, 0, 168,
-                          "No ISS naked-eye sightings found");
+                          "No ISS naked-eye sightings in the next 7 days");
     lv_obj_set_width(_lbl_empty, CONTENT_W);
     lv_obj_set_style_text_align(_lbl_empty, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_add_flag(_lbl_empty, LV_OBJ_FLAG_HIDDEN);
+
+    _lbl_no_more = mk_label(panel, &lv_font_montserrat_16, C_DIM, 0, 0,
+                            "No additional naked-eye sightings in the 7-day window");
+    lv_obj_set_width(_lbl_no_more, CONTENT_W);
+    lv_obj_set_style_text_align(_lbl_no_more, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_add_flag(_lbl_no_more, LV_OBJ_FLAG_HIDDEN);
 
     _lbl_loading = lv_label_create(panel);
     lv_label_set_text(_lbl_loading, "Please wait, computing...");
@@ -444,10 +453,20 @@ inline void build(lv_obj_t* panel) {
 
 // ── onShow (called once when navigating to this screen) ──────────────────────
 inline void onShow() {
+    if (SatTracker::issSightingsAreFresh()) return;
     lv_obj_clear_flag(_lbl_loading, LV_OBJ_FLAG_HIDDEN);
     lv_refr_now(lv_disp_get_default());
     SatTracker::recomputeIssSightings();
     lv_obj_add_flag(_lbl_loading, LV_OBJ_FLAG_HIDDEN);
+}
+
+inline const char* title() {
+    static char text[48];
+    int count = 0;
+    SatTracker::getIssSightings(count);
+    snprintf(text, sizeof(text), "ISS SIGHTINGS - %d IN %d DAYS",
+             count, SatTracker::ISS_SIGHTING_DAYS);
+    return text;
 }
 
 // ── Update (called every second) ─────────────────────────────────────────────
@@ -505,11 +524,26 @@ inline void update() {
     else
         lv_obj_add_flag(_lbl_empty, LV_OBJ_FLAG_HIDDEN);
 
+    if (_lbl_no_more) {
+        if (count > 0 && count < SatTracker::MAX_ISS_SIGHTINGS) {
+            int remainingTop = HDR_H + count * ROW_H;
+            int remainingHeight = CONTENT_H - remainingTop;
+            lv_obj_set_y(_lbl_no_more,
+                         remainingTop + (remainingHeight - 20) / 2);
+            lv_obj_clear_flag(_lbl_no_more, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(_lbl_no_more, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
     for (int i = 0; i < SatTracker::MAX_ISS_SIGHTINGS; i++) {
         if (i >= count || !list[i].valid) {
             setEmptyRow(i);
+            lv_obj_add_flag(sighting_rows[i], LV_OBJ_FLAG_HIDDEN);
             continue;
         }
+
+        lv_obj_clear_flag(sighting_rows[i], LV_OBJ_FLAG_HIDDEN);
 
         const SatTracker::IssSighting& s = list[i];
         time_t t = s.start;
