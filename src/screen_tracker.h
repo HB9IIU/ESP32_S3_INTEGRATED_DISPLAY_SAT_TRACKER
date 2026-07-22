@@ -27,7 +27,7 @@ static const int PANEL_PCY       = CANVAS_OFFSET_Y + CANVAS_CY; // 231
 
 // ── Widget pointers ───────────────────────────────────────────────────────────
 static lv_obj_t *lbl_lat, *lbl_lon, *lbl_loc, *lbl_alt, *lbl_range, *lbl_range_rate;
-static lv_obj_t *lbl_tle_age, *lbl_orbit, *lbl_velocity, *lbl_delay, *lbl_doppler;
+static lv_obj_t *lbl_tle_age, *lbl_tle_check, *lbl_orbit, *lbl_velocity, *lbl_delay, *lbl_doppler;
 static lv_obj_t *lbl_pass_hdr;
 static lv_obj_t *lbl_aos, *lbl_los, *lbl_tca, *lbl_duration, *lbl_max_el, *lbl_pass_az;
 static lv_obj_t *lbl_countdown, *lbl_los_countdown;
@@ -198,9 +198,16 @@ static void _openTleModal(lv_event_t*) {
     lv_obj_set_width(title, 520);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
 
-    char info[150];
-    snprintf(info, sizeof(info), "%s\nNORAD %lu     Current age: %.1f h",
-             s.name, (unsigned long)s.noradId, s.tleAgeHours);
+    time_t lastSuccess = TLEManager::getLastSatSuccess(s.noradId);
+    float checkedAgeH = lastSuccess > 0 && time(nullptr) >= lastSuccess
+                      ? (float)(time(nullptr) - lastSuccess) / 3600.0f : -1.0f;
+    char info[180];
+    if (checkedAgeH >= 0.0f)
+        snprintf(info, sizeof(info), "%s\nNORAD %lu     TLE age: %.1f h     Last check: %.1f h ago",
+                 s.name, (unsigned long)s.noradId, s.tleAgeHours, checkedAgeH);
+    else
+        snprintf(info, sizeof(info), "%s\nNORAD %lu     TLE age: %.1f h     Last check: --",
+                 s.name, (unsigned long)s.noradId, s.tleAgeHours);
     lv_obj_t* details = mk_label(box, &lv_font_montserrat_16, C_VAL, 20, 50, info);
     lv_obj_set_width(details, 520);
     lv_obj_set_style_text_align(details, LV_TEXT_ALIGN_CENTER, 0);
@@ -366,15 +373,15 @@ inline void build(lv_obj_t* panel) {
 
     // ── Left: orbit telemetry ─────────────────────────────────────────────────
     mk_label(panel, FT, C_SEC, 8,  8, "ORBIT TELEMETRY");
-    mk_label(panel, FT, C_DIM, 8, 38, "TLE AGE");
-    lbl_tle_age = mk_label(panel, FT, C_VAL, 8, 38);
+    mk_label(panel, FT, C_DIM, 8, 34, "TLE AGE");
+    lbl_tle_age = mk_label(panel, FT, C_VAL, 8, 34);
     lv_obj_set_width(lbl_tle_age, COL_W - 16);
     lv_obj_set_style_text_align(lbl_tle_age, LV_TEXT_ALIGN_RIGHT, 0);
 
     // Full-width touch target for the TLE AGE key and value.
     lv_obj_t* tle_age_hit = lv_obj_create(panel);
-    lv_obj_set_size(tle_age_hit, COL_W - 2, 26);
-    lv_obj_set_pos(tle_age_hit, 0, 36);
+    lv_obj_set_size(tle_age_hit, COL_W - 2, 48);
+    lv_obj_set_pos(tle_age_hit, 0, 32);
     lv_obj_set_style_bg_opa(tle_age_hit, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(tle_age_hit, 0, 0);
     lv_obj_set_style_pad_all(tle_age_hit, 0, 0);
@@ -382,47 +389,52 @@ inline void build(lv_obj_t* panel) {
     lv_obj_add_flag(tle_age_hit, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(tle_age_hit, _openTleModal, LV_EVENT_CLICKED, nullptr);
 
-    mk_label(panel, FT, C_DIM, 8, 64, "ORBIT");
-    lbl_orbit = mk_label(panel, FT, C_VAL, 8, 64);
+    mk_label(panel, F12, C_DIM, 8, 62, "LAST CHECK");
+    lbl_tle_check = mk_label(panel, FT, C_VAL, 8, 58);
+    lv_obj_set_width(lbl_tle_check, COL_W - 16);
+    lv_obj_set_style_text_align(lbl_tle_check, LV_TEXT_ALIGN_RIGHT, 0);
+
+    mk_label(panel, FT, C_DIM, 8, 82, "ORBIT");
+    lbl_orbit = mk_label(panel, FT, C_VAL, 8, 82);
     lv_obj_set_width(lbl_orbit, COL_W - 16);
     lv_obj_set_style_text_align(lbl_orbit, LV_TEXT_ALIGN_RIGHT, 0);
-    mk_label(panel, FT, C_DIM, 8,  90, "LAT");
-    lbl_lat = mk_label(panel, FT, C_VAL, 8, 90);
+    mk_label(panel, FT, C_DIM, 8, 106, "LAT");
+    lbl_lat = mk_label(panel, FT, C_VAL, 8, 106);
     lv_obj_set_width(lbl_lat, COL_W - 16);
     lv_obj_set_style_text_align(lbl_lat, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 116, "LON");
-    lbl_lon = mk_label(panel, FT, C_VAL, 8, 116);
+    mk_label(panel, FT, C_DIM, 8, 130, "LON");
+    lbl_lon = mk_label(panel, FT, C_VAL, 8, 130);
     lv_obj_set_width(lbl_lon, COL_W - 16);
     lv_obj_set_style_text_align(lbl_lon, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 142, "LOC");
-    lbl_loc = mk_label(panel, FT, C_VAL, 8, 142);
+    mk_label(panel, FT, C_DIM, 8, 154, "LOC");
+    lbl_loc = mk_label(panel, FT, C_VAL, 8, 154);
     lv_obj_set_width(lbl_loc, COL_W - 16);
     lv_obj_set_style_text_align(lbl_loc, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 168, "ALT");
-    lbl_alt = mk_label(panel, FT, C_VAL, 8, 168);
+    mk_label(panel, FT, C_DIM, 8, 178, "ALT");
+    lbl_alt = mk_label(panel, FT, C_VAL, 8, 178);
     lv_obj_set_width(lbl_alt, COL_W - 16);
     lv_obj_set_style_text_align(lbl_alt, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 194, "RNG");
-    lbl_range = mk_label(panel, FT, C_VAL, 8, 194);
+    mk_label(panel, FT, C_DIM, 8, 202, "RNG");
+    lbl_range = mk_label(panel, FT, C_VAL, 8, 202);
     lv_obj_set_width(lbl_range, COL_W - 16);
     lv_obj_set_style_text_align(lbl_range, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 220, "RRT");
-    lbl_range_rate = mk_label(panel, FT, C_VAL, 8, 220);
+    mk_label(panel, FT, C_DIM, 8, 226, "RRT");
+    lbl_range_rate = mk_label(panel, FT, C_VAL, 8, 226);
     lv_obj_set_width(lbl_range_rate, COL_W - 16);
     lv_obj_set_style_text_align(lbl_range_rate, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 246, "SPD");
-    lbl_velocity = mk_label(panel, FT, C_VAL, 8, 246);
+    mk_label(panel, FT, C_DIM, 8, 250, "SPD");
+    lbl_velocity = mk_label(panel, FT, C_VAL, 8, 250);
     lv_obj_set_width(lbl_velocity, COL_W - 16);
     lv_obj_set_style_text_align(lbl_velocity, LV_TEXT_ALIGN_RIGHT, 0);
 
-    mk_label(panel, FT, C_DIM, 8, 272, "DLY");
-    lbl_delay = mk_label(panel, FT, C_VAL, 8, 272);
+    mk_label(panel, FT, C_DIM, 8, 274, "DLY");
+    lbl_delay = mk_label(panel, FT, C_VAL, 8, 274);
     lv_obj_set_width(lbl_delay, COL_W - 16);
     lv_obj_set_style_text_align(lbl_delay, LV_TEXT_ALIGN_RIGHT, 0);
     mk_label(panel, FT,  C_DIM, 8,  298, "DOP");
@@ -610,6 +622,15 @@ inline void update() {
     // Left: telemetry
     snprintf(buf, sizeof(buf), "%.1f h", s.tleAgeHours);
     lv_label_set_text(lbl_tle_age, buf);
+
+    time_t lastCheck = TLEManager::getLastSatSuccess(s.noradId);
+    if (lastCheck > 0 && now >= lastCheck) {
+        float checkAgeH = (float)(now - lastCheck) / 3600.0f;
+        snprintf(buf, sizeof(buf), "%.1f h", checkAgeH);
+    } else {
+        snprintf(buf, sizeof(buf), "--");
+    }
+    lv_label_set_text(lbl_tle_check, buf);
 
     snprintf(buf, sizeof(buf), "%.2f %c", fabs(s.lat), s.lat >= 0 ? 'N' : 'S');
     lv_label_set_text(lbl_lat, buf);
