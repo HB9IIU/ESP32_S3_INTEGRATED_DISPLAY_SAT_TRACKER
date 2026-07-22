@@ -5,10 +5,12 @@
 #include <time.h>
 #include "myconfig.h"
 #include "http_utils.h"
+#include "nvs_config.h"
 
 #define TLE_DIR             "/tle"
 #define TLE_LAST_FETCH_PATH "/tle/.last_fetch"
 #define TLE_MAX_AGE_H       24
+#define TLE_RETRY_AGE_H      2
 #define CELESTRAK_URL       "https://celestrak.org/NORAD/elements/gp.php"
 
 namespace TLEManager {
@@ -33,24 +35,80 @@ static void manualCheckPath(uint32_t id, char* buf, size_t len) {
     snprintf(buf, len, "%s/.check_%lu", TLE_DIR, (unsigned long)id);
 }
 
-inline time_t getLastManualCheck(uint32_t id) {
-    char path[40];
-    manualCheckPath(id, path, sizeof(path));
-    File f = LittleFS.open(path, "r");
-    if (!f) return 0;
-    time_t checked = (time_t)f.parseInt();
-    f.close();
-    return checked;
+static void satSuccessPath(uint32_t id, char* buf, size_t len) {
+    snprintf(buf, len, "%s/.success_%lu", TLE_DIR, (unsigned long)id);
 }
 
-inline void saveManualCheck(uint32_t id) {
-    char path[40];
-    manualCheckPath(id, path, sizeof(path));
+static void groupCheckPath(int groupIndex, char* buf, size_t len) {
+    snprintf(buf, len, "%s/.group_%d", TLE_DIR, groupIndex);
+}
+
+static void groupAttemptPath(int groupIndex, char* buf, size_t len) {
+    snprintf(buf, len, "%s/.group_try_%d", TLE_DIR, groupIndex);
+}
+
+static time_t readTimestamp(const char* path) {
+    File f = LittleFS.open(path, "r");
+    if (!f) return 0;
+    time_t value = (time_t)f.parseInt();
+    f.close();
+    return value;
+}
+
+static void writeTimestamp(const char* path) {
     File f = LittleFS.open(path, "w");
     if (f) {
         f.print((long)time(nullptr));
         f.close();
     }
+}
+
+inline time_t getLastGroupCheck(int groupIndex) {
+    char path[40];
+    groupCheckPath(groupIndex, path, sizeof(path));
+    return readTimestamp(path);
+}
+
+inline void saveGroupCheck(int groupIndex) {
+    char path[40];
+    groupCheckPath(groupIndex, path, sizeof(path));
+    writeTimestamp(path);
+}
+
+inline time_t getLastGroupAttempt(int groupIndex) {
+    char path[40];
+    groupAttemptPath(groupIndex, path, sizeof(path));
+    return readTimestamp(path);
+}
+
+inline void saveGroupAttempt(int groupIndex) {
+    char path[40];
+    groupAttemptPath(groupIndex, path, sizeof(path));
+    writeTimestamp(path);
+}
+
+inline time_t getLastManualCheck(uint32_t id) {
+    char path[40];
+    manualCheckPath(id, path, sizeof(path));
+    return readTimestamp(path);
+}
+
+inline void saveManualCheck(uint32_t id) {
+    char path[40];
+    manualCheckPath(id, path, sizeof(path));
+    writeTimestamp(path);
+}
+
+inline time_t getLastSatSuccess(uint32_t id) {
+    char path[40];
+    satSuccessPath(id, path, sizeof(path));
+    return readTimestamp(path);
+}
+
+inline void saveSatSuccess(uint32_t id) {
+    char path[40];
+    satSuccessPath(id, path, sizeof(path));
+    writeTimestamp(path);
 }
 
 // ── File I/O ──────────────────────────────────────────────────────────────────
@@ -163,8 +221,14 @@ static bool inSatList(uint32_t id) {
     return false;
 }
 
-static int parseAndStore(const String& body) {
-    int stored = 0;
+struct ParseResult {
+    int valid;
+    int matched;
+    int stored;
+};
+
+static ParseResult parseAndStore(const String& body) {
+    ParseResult result{};
     int pos    = 0;
     int total  = (int)body.length();
 
@@ -187,15 +251,63 @@ static int parseAndStore(const String& body) {
         if (l1.length() < 10 || !l1.startsWith("1 ")) continue;
         if (l2.length() < 10 || !l2.startsWith("2 ")) continue;
 
+        result.valid++;
+
         uint32_t noradId = (uint32_t)atol(l1.c_str() + 2);
         if (!inSatList(noradId)) continue;
 
-        if (storeTLE(noradId, name, l1, l2)) {
+        result.matched++;
+
+        // A manual CATNR check may already have installed a newer element set.
+        // Never let a later bulk response roll that satellite backwards.
+        char oldName[30], oldL1[70], oldL2[70];
+        time_t oldEpoch = 0;
+        if (loadTLE(noradId, oldName, oldL1, oldL2))
+            oldEpoch = epochFromLine1(oldL1);
+        time_t newEpoch = epochFromLine1(l1.c_str());
+
+        if (newEpoch != 0 && (oldEpoch == 0 || newEpoch > oldEpoch) &&
+            storeTLE(noradId, name, l1, l2)) {
             Serial.printf("[tle] Stored %lu  %s\n", (unsigned long)noradId, name.c_str());
-            stored++;
+            result.stored++;
+        }
+        // This records that CelesTrak was successfully checked for this NORAD
+        // ID, even when the local element set was already current.
+        if (newEpoch != 0) {
+            saveManualCheck(noradId);
+            saveSatSuccess(noradId);
         }
     }
-    return stored;
+    return result;
+}
+
+static bool fetchPersonalSatellite(uint32_t id) {
+    char url[180];
+    snprintf(url, sizeof(url), "%s?CATNR=%lu&FORMAT=TLE",
+             CELESTRAK_URL, (unsigned long)id);
+    String body = HttpUtils::get(url, true, 2);
+    if (body.isEmpty()) return false;
+
+    int p1 = body.indexOf('\n');
+    int p2 = p1 >= 0 ? body.indexOf('\n', p1 + 1) : -1;
+    int p3 = p2 >= 0 ? body.indexOf('\n', p2 + 1) : -1;
+    if (p1 < 0 || p2 < 0) return false;
+    String name = body.substring(0, p1); name.trim();
+    String l1 = body.substring(p1 + 1, p2); l1.trim();
+    String l2 = p3 >= 0 ? body.substring(p2 + 1, p3) : body.substring(p2 + 1); l2.trim();
+    if (!l1.startsWith("1 ") || !l2.startsWith("2 ")) return false;
+    if ((uint32_t)atol(l1.c_str() + 2) != id) return false;
+
+    time_t newEpoch = epochFromLine1(l1.c_str());
+    if (newEpoch == 0) return false;
+    char oldName[30], oldL1[70], oldL2[70];
+    time_t oldEpoch = loadTLE(id, oldName, oldL1, oldL2)
+                    ? epochFromLine1(oldL1) : 0;
+    bool ok = true;
+    if (oldEpoch == 0 || newEpoch > oldEpoch)
+        ok = storeTLE(id, name, l1, l2);
+    if (ok) saveSatSuccess(id);
+    return ok;
 }
 
 // ── Display name for a group query string (strips "GROUP=" / "NAME=") ─────────
@@ -224,36 +336,27 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
         }
     }
 
-    // Decide freshness by time since last successful fetch, not by TLE epoch age.
-    // (Some satellites have old epochs because Celestrak doesn't update them —
-    //  that's not a reason to hammer the server on every boot.)
-    time_t lastFetch = getLastFetchTime();
     time_t now       = time(nullptr);
-    float  fetchAgeH = (lastFetch > 0) ? (float)(now - lastFetch) / 3600.0f : 9999.0f;
-
-    Serial.printf("[tle] State: %d/%d present  |  last fetch: %.1f h ago\n",
-                  SAT_COUNT - missing, SAT_COUNT, fetchAgeH);
-
-    if (fetchAgeH < (float)TLE_MAX_AGE_H) {
-        Serial.printf("[tle] Fetch is %.1f h old — skipping (threshold %d h).\n",
-                      fetchAgeH, TLE_MAX_AGE_H);
-        r.satellitesMissing = missing;
-        r.skipped = true;
-        if (statusCb) {
-            char msg[64];
-            snprintf(msg, sizeof(msg), "TLE data fresh (%.0f h old) - skipping", fetchAgeH);
-            statusCb(msg, 0x00FF88);
-        }
-        return r;
-    }
-
-    Serial.printf("[tle] Refresh required (last fetch %.1f h ago, %d missing)\n",
-                  fetchAgeH, missing);
-
-    if (statusCb) statusCb("Downloading TLE data ...", 0x00D4FF);
+    bool anyDue = false;
 
     // Fetch each group
     for (int g = 0; g < TLE_GROUP_COUNT; g++) {
+        time_t checked = getLastGroupCheck(g);
+        float ageH = checked > 0 ? (float)(now - checked) / 3600.0f : 9999.0f;
+        if (ageH < (float)TLE_MAX_AGE_H) {
+            Serial.printf("[tle] Group %s checked %.1f h ago - skipping\n",
+                          TLE_GROUPS[g], ageH);
+            continue;
+        }
+        time_t attempted = getLastGroupAttempt(g);
+        float attemptAgeH = attempted > 0 ? (float)(now - attempted) / 3600.0f : 9999.0f;
+        if (attemptAgeH < (float)TLE_RETRY_AGE_H) {
+            Serial.printf("[tle] Group %s failed/attempted %.1f h ago - retry later\n",
+                          TLE_GROUPS[g], attemptAgeH);
+            continue;
+        }
+        anyDue = true;
+        saveGroupAttempt(g);
         Serial.printf("[tle] ── Fetching group: %s\n", TLE_GROUPS[g]);
 
         if (statusCb) {
@@ -273,13 +376,52 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
             continue;
         }
 
-        int n = parseAndStore(body);
-        Serial.printf("[tle] Group %s: %d satellites stored\n", TLE_GROUPS[g], n);
+        ParseResult parsed = parseAndStore(body);
+        if (parsed.valid == 0) {
+            Serial.printf("[tle] Group %s returned no valid TLEs\n", TLE_GROUPS[g]);
+            r.groupsFailed++;
+            continue;
+        }
+        saveGroupCheck(g);
+        Serial.printf("[tle] Group %s: %d matched, %d newer TLEs stored\n",
+                      TLE_GROUPS[g], parsed.matched, parsed.stored);
         r.groupsFetched++;
-        r.satellitesStored += n;
+        r.satellitesStored += parsed.stored;
     }
 
-    // Persist the fetch time so next boot skips the download
+    // Personal satellites are authoritative in NVS, so they survive both
+    // firmware-only OTA and OTA updates that replace the LittleFS partition.
+    // Missing cache files are reconstructed here from those preserved IDs.
+    uint32_t personal[NVSConfig::MAX_MY_SATS] = {};
+    size_t personalCount = NVSConfig::loadMySats(personal, NVSConfig::MAX_MY_SATS);
+    for (size_t i = 0; i < personalCount; i++) {
+        uint32_t id = personal[i];
+        if (inSatList(id)) continue;
+        time_t checked = getLastSatSuccess(id);
+        float ageH = checked > 0 ? (float)(now - checked) / 3600.0f : 9999.0f;
+        bool missingFile = !tleExists(id);
+        if (!missingFile && ageH < (float)TLE_MAX_AGE_H) continue;
+        time_t attempted = getLastManualCheck(id);
+        float attemptAgeH = attempted > 0 ? (float)(now - attempted) / 3600.0f : 9999.0f;
+        if (attemptAgeH < (float)TLE_RETRY_AGE_H) continue;
+        anyDue = true;
+        if (statusCb) {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "TLE: personal NORAD %lu (%u/%u)",
+                     (unsigned long)id, (unsigned)(i + 1), (unsigned)personalCount);
+            statusCb(msg, 0x00D4FF);
+        }
+        Serial.printf("[tle] Fetching personal NORAD %lu%s\n",
+                      (unsigned long)id, missingFile ? " (cache missing)" : "");
+        saveManualCheck(id);
+        if (fetchPersonalSatellite(id)) r.satellitesStored++;
+        else Serial.printf("[tle] Personal NORAD %lu fetch failed; NVS entry retained\n",
+                           (unsigned long)id);
+    }
+
+    r.skipped = !anyDue;
+
+    // Retain the legacy aggregate timestamp for compatibility/diagnostics.
     if (r.groupsFetched > 0) {
         saveLastFetchTime();
         Serial.println("[tle] Fetch timestamp saved.");

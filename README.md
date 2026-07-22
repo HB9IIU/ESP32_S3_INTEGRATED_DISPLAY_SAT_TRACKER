@@ -118,7 +118,7 @@ The satellite name in the header opens the grouped selector overlay. Built-in gr
 9. Fetch or load cached observer location via IP geolocation
 10. Fetch or load cached UTC offset
 11. Sync time via NTP
-12. Refresh TLE data from Celestrak if the cache is older than 24 hours
+12. Refresh due CelesTrak groups and personal satellites using independent 24-hour checks
 13. Start the screenshot server and WebSocket server
 14. Initialise SGP4 for the selected satellite
 15. Start background sky/map scanning
@@ -289,7 +289,8 @@ Runtime changes from the SETUP screen:
 ## Notes and Limitations
 
 - NTP sync is required for correct orbit propagation; the firmware reboots and retries if sync fails.
-- TLE refresh is rate-limited to once per 24 hours by last-fetch timestamp.
+- Each TLE group and personal satellite has an independent 24-hour successful-check timestamp; failed requests retry after two hours.
+- Personal satellite NORAD IDs are stored in NVS and survive firmware/LittleFS OTA updates. If OTA replaces LittleFS, their TLE cache is rebuilt automatically at the next boot.
 - Factory reset clears stored settings but does not erase existing TLE files in LittleFS.
 - The MAP screen requires `/worldmap.jpg` in LittleFS; the splash screen is optional.
 - Active-satellite pass storage is capped at eight future passes.

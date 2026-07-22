@@ -156,6 +156,8 @@ static void _fetch_cb(lv_event_t*) {
         lv_obj_set_style_text_color(_sat_status, lv_color_hex(C_RED), 0);
         return;
     }
+    TLEManager::saveManualCheck(id);
+    TLEManager::saveSatSuccess(id);
     const char* existingGroup = builtInGroupForSat(id);
     bool addedToMySats = true;
     if (existingGroup) {

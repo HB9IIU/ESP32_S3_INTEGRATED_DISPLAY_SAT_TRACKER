@@ -136,6 +136,7 @@ static void _checkTleUpdate(lv_event_t*) {
     char msg[200];
 
     if (newEpoch <= oldEpoch) {
+        TLEManager::saveSatSuccess(id);
         snprintf(msg, sizeof(msg),
                  newEpoch == oldEpoch
                      ? "Already up to date.\nLocal: %.1f h   Server: %.1f h\nNo file was replaced."
@@ -151,6 +152,7 @@ static void _checkTleUpdate(lv_event_t*) {
         lv_obj_set_style_text_color(_tle_status, lv_color_hex(C_RED), 0);
         return;
     }
+    TLEManager::saveSatSuccess(id);
 
     if (!SatTracker::begin(id)) {
         lv_label_set_text(_tle_status, "TLE saved, but tracker reload failed. Restart the device.");
