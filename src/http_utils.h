@@ -21,8 +21,11 @@ inline String get(const char* url, bool secure = false, int retries = 3,
             // Deleting secClient while HTTPClient still holds a reference to it causes
             // a crash in ~HTTPClient() when it tries to close the connection.
             HTTPClient http;
+            http.setConnectTimeout(15000);
             http.setTimeout(10000);
-            http.addHeader("User-Agent", "ESP32-SatTracker/1.0");
+            http.setUserAgent("ESP32-SatTracker/1.0");
+            http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+            http.setRedirectLimit(3);
 
             bool begun = false;
             if (secure) {
@@ -42,6 +45,29 @@ inline String get(const char* url, bool secure = false, int retries = 3,
                 if (code == HTTP_CODE_OK) {
                     body = http.getString();
                     Serial.printf("[http] %d bytes received\n", body.length());
+                } else if (code < 0) {
+                    Serial.printf("[http] Transport error: %s\n",
+                                  HTTPClient::errorToString(code).c_str());
+                    if (secClient) {
+                        char error[160] = {};
+                        int tlsCode = secClient->lastError(error, sizeof(error));
+                        Serial.printf("[http] TLS error: %d %s; free heap=%u\n",
+                                      tlsCode, error, ESP.getFreeHeap());
+                    }
+                } else {
+                    // Keep the diagnostic bounded, including for large HTML errors.
+                    char preview[257] = {};
+                    WiFiClient* stream = http.getStreamPtr();
+                    size_t limit = sizeof(preview) - 1;
+                    if (http.getSize() >= 0 && (size_t)http.getSize() < limit)
+                        limit = (size_t)http.getSize();
+                    size_t received = 0;
+                    if (stream) {
+                        stream->setTimeout(1000);
+                        received = stream->readBytes(preview, limit);
+                    }
+                    preview[received] = '\0';
+                    Serial.printf("[http] Server response: %s\n", preview);
                 }
                 http.end();
             }
@@ -55,6 +81,9 @@ inline String get(const char* url, bool secure = false, int retries = 3,
         }
 
         Serial.printf("[http] ERROR: code %d\n", code);
+        // Repeating HTTP errors can trigger CelesTrak's IP blocking. Only
+        // retry transport failures; let callers apply their normal cooldown.
+        if (code > 0) break;
         if (attempt < retries) {
             Serial.println("[http] Retrying in 2 s...");
             delay(2000);

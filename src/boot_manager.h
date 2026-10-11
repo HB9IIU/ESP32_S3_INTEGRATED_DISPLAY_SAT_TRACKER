@@ -348,10 +348,9 @@ static bool connectWiFi(const char* ssid, const char* pass,
     }
 
     // mDNS — device reachable at http://<host>.local:8080/screenshot.bmp
-    NVSConfig::WsConfig _wsCfg = NVSConfig::loadWsConfig();
-    if (MDNS.begin(_wsCfg.host)) {
+    if (MDNS.begin(WIFI_HOSTNAME)) {
         MDNS.addService("http", "tcp", 8080);
-        Serial.printf("[mdns] Started — http://%s.local:8080/screenshot.bmp\n", _wsCfg.host);
+        Serial.printf("[mdns] Started — http://%s.local:8080/\n", WIFI_HOSTNAME);
     } else {
         Serial.println("[mdns] Failed to start");
     }

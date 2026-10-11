@@ -9,7 +9,6 @@
 #include "tle_manager.h"
 #include "http_utils.h"
 #include "firmware_update_page.h"
-#include "screen_websocket.h"
 #include "screen_manage_list.h"
 
 namespace ScreenSetup {
@@ -397,28 +396,6 @@ inline void build(lv_obj_t* panel) {
     lv_obj_set_style_text_color(ml, lv_color_hex(0xD8B8F5), 0);
     lv_obj_center(ml);
 
-    mk_panel(panel, 0, 392, 800, 2, C_DIV);
-
-    // WEB SOCKET button
-    lv_obj_t* ws = lv_obj_create(panel);
-    lv_obj_remove_style_all(ws);
-    lv_obj_set_pos(ws, RX + 12, 400);
-    lv_obj_set_size(ws, 374, 34);
-    lv_obj_set_style_bg_color(ws, lv_color_hex(0x1A2D40), 0);
-    lv_obj_set_style_bg_opa(ws, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(ws, lv_color_hex(0x255E84), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(ws, lv_color_hex(C_SEC), 0);
-    lv_obj_set_style_border_width(ws, 0, 0);
-    lv_obj_set_style_radius(ws, 4, 0);
-    lv_obj_set_style_pad_all(ws, 0, 0);
-    lv_obj_clear_flag(ws, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(ws, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(ws, [](lv_event_t*) { ScreenWebSocket::open(); }, LV_EVENT_CLICKED, nullptr);
-    lv_obj_t* wsl = lv_label_create(ws);
-    lv_label_set_text(wsl, "WEB SOCKET");
-    lv_obj_set_style_text_font(wsl, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(wsl, lv_color_hex(C_SEC), 0);
-    lv_obj_center(wsl);
 }
 
 inline void onShow() {

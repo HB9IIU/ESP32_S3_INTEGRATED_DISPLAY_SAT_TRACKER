@@ -2,7 +2,7 @@
 
 > Touch-driven satellite tracking firmware for Waveshare ESP32-S3 integrated display boards.
 
-This project turns an 800×480 touchscreen into a self-contained satellite tracking console for amateur, weather, CubeSat, ISS, and geostationary satellites. It handles Wi-Fi onboarding, automatic geolocation, NTP time sync, TLE download and caching, SGP4 orbit propagation, pass prediction, live screenshots, WebSocket telemetry, browser flashing, and on-device firmware updates.
+This project turns an 800×480 touchscreen into a self-contained satellite tracking console for amateur, weather, CubeSat, ISS, and geostationary satellites. It handles Wi-Fi onboarding, automatic geolocation, NTP time sync, TLE download and caching, SGP4 orbit propagation, pass prediction, an HTTP tracking API, live screenshots, browser flashing, and on-device firmware updates.
 
 ---
 
@@ -51,9 +51,9 @@ Both boards share the same ESP32-S3 SoC, 800×480 RGB parallel display, GT911 ca
 |-------|--------|
 | ![SETUP](Doc/Screenshots/SETUP.png) | ![SELECT](Doc/Screenshots/SELECT.png) |
 
-| WEB SOCKET | FIRMWARE UPDATE |
-|------------|-----------------|
-| ![WEB SOCKET](Doc/Screenshots/WEB-SOCKET.png) | ![FIRMWARE UPDATE](Doc/Screenshots/FIRMWARE-UPDATE.png) |
+| FIRMWARE UPDATE |
+|-----------------|
+| ![FIRMWARE UPDATE](Doc/Screenshots/FIRMWARE-UPDATE.png) |
 
 ---
 
@@ -82,7 +82,7 @@ Both boards share the same ESP32-S3 SoC, 800×480 RGB parallel display, GT911 ca
 - **On-device firmware update** — checks GitHub Releases, compares versions, flashes firmware and optional LittleFS assets, and reboots.
 - **Browser flashing page** — GitHub Actions builds firmware and deploys an ESP Web Tools installer to GitHub Pages.
 - **Live screenshot endpoint** — browse to `http://<hostname>.local:8080/screenshot.bmp` to capture the display.
-- **WebSocket telemetry** — broadcasts live azimuth/elevation JSON once per second on a configurable port.
+- **HTTP tracking API** — returns the active satellite name and current azimuth/elevation as JSON.
 - **Self-contained firmware build** — libraries are vendored under `lib/`; normal PlatformIO builds do not need library downloads.
 
 ---
@@ -119,7 +119,7 @@ The satellite name in the header opens the grouped selector overlay. Built-in gr
 10. Fetch or load cached UTC offset
 11. Sync time via NTP
 12. Refresh due CelesTrak groups and personal satellites using independent 24-hour checks
-13. Start the screenshot server and WebSocket server
+13. Start the HTTP screenshot and tracking API server
 14. Initialise SGP4 for the selected satellite
 15. Start background sky/map scanning
 16. Build the LVGL interface
@@ -128,17 +128,16 @@ The satellite name in the header opens the grouped selector overlay. Built-in gr
 
 | Module | Responsibility |
 |--------|----------------|
-| `src/main.cpp` | Application entry point, splash/version display, WebSocket broadcast loop, screenshot service loop |
+| `src/main.cpp` | Application entry point, splash/version display, tracking API, and screenshot service |
 | `src/boot_manager.h` | Boot sequence — factory reset, Wi-Fi, mDNS, geolocation, timezone, NTP, TLE refresh |
 | `src/orientation_check.h` | One-time display orientation selection and saved rotation handling |
 | `src/wifi_page.h` | Full-screen Wi-Fi credential entry with network scan, popup selector, password keyboard, and save/reboot flow |
-| `src/nvs_config.h` | Persistent settings — Wi-Fi, AP hints, location, timezone cache, selected satellite, custom sats, rotation, WebSocket config |
+| `src/nvs_config.h` | Persistent settings — Wi-Fi, AP hints, location, timezone cache, selected satellite, custom sats, and rotation |
 | `src/tle_manager.h` | TLE fetch, parse, store, freshness checks, and LittleFS file access |
 | `src/sat_tracker.h` | SGP4 state, live orbital calculations, active-sat passes, all-sat passes, ISS sightings, sky/map background scan |
 | `src/ota_update.h` | GitHub Releases update check and firmware/LittleFS flashing |
 | `src/firmware_update_page.h` | LVGL firmware update page with version comparison, progress, and install/retry UI |
 | `src/screen_manager.h` | Header, navigation bar, screen switching, periodic UI updates |
-| `src/screen_websocket.h` | LVGL WebSocket hostname/port configuration page |
 
 ### Screens
 
@@ -151,7 +150,7 @@ The satellite name in the header opens the grouped selector overlay. Built-in gr
 | `PASS` | Next eight passes for the active satellite, or GEO summary for geostationary satellites |
 | `PASS(A)` | Next upcoming passes across all built-in non-GEO catalogue satellites; tap to track |
 | `ISS` | Naked-eye ISS sighting opportunities with detail overlay |
-| `SETUP` | Observer location entry, direct NORAD fetch-and-track, firmware update, and WebSocket settings |
+| `SETUP` | Observer location entry, direct NORAD fetch-and-track, and firmware update |
 
 ---
 
@@ -159,11 +158,11 @@ The satellite name in the header opens the grouped selector overlay. Built-in gr
 
 | Interface | Default | Purpose |
 |-----------|---------|---------|
-| mDNS hostname | `satwebsock.local` | Device hostname used for local services |
-| Screenshot HTTP endpoint | `http://satwebsock.local:8080/screenshot.bmp` | Captures the current display as a BMP |
-| WebSocket telemetry | `ws://satwebsock.local:4235` | Broadcasts `{"azimuth":..., "elevation":...}` once per second |
+| mDNS hostname | `satapi.local` | Device hostname used for local services |
+| Tracking HTTP endpoint | `http://satapi.local:8080/api/tracking` | Returns the active satellite name, azimuth, and elevation as JSON |
+| Screenshot HTTP endpoint | `http://satapi.local:8080/screenshot.bmp` | Captures the current display as a BMP |
 
-The WebSocket hostname and port can be changed from **SETUP → WEB SOCKET**. Restart after saving for the server setting to apply.
+The tracking endpoint returns `Cache-Control: no-store`. If tracking data is unavailable, it returns HTTP 503 with a JSON error response.
 
 ---
 
@@ -215,7 +214,6 @@ The installed version is generated by `get_version.py` from `git describe --tags
 │   ├── screen_iss.h            ISS SIGHTINGS screen
 │   ├── screen_setup.h          SETUP screen
 │   ├── screen_selector.h       Satellite selector overlay
-│   ├── screen_websocket.h      WebSocket settings page
 │   ├── lv_driver.h             LVGL display flush and touch callbacks
 │   ├── myconfig.h              Hostname, default satellite, catalogue definition
 │   └── fonts/                  Generated JetBrains Mono LVGL font sources
@@ -281,7 +279,6 @@ Runtime changes from the SETUP screen:
 - Observer latitude and longitude
 - Active tracked satellite by direct NORAD ID
 - Persistent custom satellites in `MY SATS`
-- WebSocket hostname and port
 - Firmware update check/install
 
 ---
@@ -310,7 +307,7 @@ The pointer is a compact 3D-printed unit with two axes driven by 28BYJ-48 steppe
 - **Azimuth** — the entire top disk rotates to point toward the satellite's compass direction
 - **Elevation** — a red needle tilts from 0° to 90° to show how high the satellite sits above the horizon
 
-It runs its own ESP32 firmware (`src/pointer.cpp`) that connects to the display tracker via WebSocket and receives live azimuth/elevation JSON once per second. On boot it homes both axes to a known mechanical stop, then tracks continuously. When the satellite drops below the horizon the needle returns to rest and gives a gentle wiggle every 20 seconds to confirm it is still alive.
+It runs its own ESP32 firmware (`src/pointer.cpp`). On boot it homes both axes to a known mechanical stop, then tracks continuously. The pointer firmware still needs to be migrated separately to poll the new HTTP tracking API.
 
 | | |
 |---|---|
@@ -325,4 +322,4 @@ It runs its own ESP32 firmware (`src/pointer.cpp`) that connects to the display 
 
 ## License
 
-This repository vendors third-party libraries under `lib/`, including LVGL, LovyanGFX, ArduinoJson, Sgp4, QRCode, WebSockets, and screenshot support code. See the individual license files inside those directories for their terms.
+This repository vendors third-party libraries under `lib/`, including LVGL, LovyanGFX, ArduinoJson, Sgp4, QRCode, and screenshot support code. The WebSockets library remains temporarily for the legacy pointer firmware until that firmware is migrated to the HTTP API. See the individual license files inside those directories for their terms.

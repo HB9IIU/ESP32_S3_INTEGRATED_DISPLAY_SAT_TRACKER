@@ -1,7 +1,8 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <lvgl.h>
-#include <WebSocketsServer.h>
+#include <WebServer.h>
+#include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 #include "HB9IIUdisplayInit.h"
 #include "lv_driver.h"
@@ -15,7 +16,27 @@
 
 LGFX tft;
 static LvglScreenshot screenshot;
-static WebSocketsServer* webSocket = nullptr;
+static WebServer httpServer(8080);
+
+static void serveTracking() {
+    const auto& state = SatTracker::getState();
+    httpServer.sendHeader("Cache-Control", "no-store");
+
+    if (!state.tleLoaded || state.name[0] == '\0' ||
+        !isfinite(state.azimuth) || !isfinite(state.elevation)) {
+        httpServer.send(503, "application/json", "{\"error\":\"Tracking data unavailable\"}");
+        return;
+    }
+
+    JsonDocument response;
+    response["satellite"] = state.name;
+    response["azimuth"] = state.azimuth;
+    response["elevation"] = state.elevation;
+
+    String body;
+    serializeJson(response, body);
+    httpServer.send(200, "application/json", body);
+}
 
 static void show_splash() {
     File root = LittleFS.open("/");
@@ -62,21 +83,10 @@ void setup() {
     Serial.printf("[perf] BootManager::run()            %lu ms\n", millis() - t_boot0);
 
     // ArduinoOTA — allows "Upload" from PlatformIO env:DISPLAY_OTA over WiFi
-    ArduinoOTA.setHostname("satwebsock");  // must match boot_manager MDNS.begin() hostname
+    ArduinoOTA.setHostname(WIFI_HOSTNAME);  // must match boot_manager MDNS.begin() hostname
     // ArduinoOTA.setPassword("secret");  // uncomment to require a password
     ArduinoOTA.begin();
-    Serial.println("[ota] ArduinoOTA ready  (satwebsock.local:3232)");
-
-    {
-        auto wsCfg = NVSConfig::loadWsConfig();
-        webSocket = new WebSocketsServer(wsCfg.port);
-        webSocket->begin();
-        webSocket->onEvent([](uint8_t num, WStype_t type, uint8_t* /*payload*/, size_t /*length*/) {
-            if (type == WStype_CONNECTED)    Serial.printf("[WS] client %u connected\n", num);
-            if (type == WStype_DISCONNECTED) Serial.printf("[WS] client %u disconnected\n", num);
-        });
-        Serial.printf("[WS] server started on port %u\n", wsCfg.port);
-    }
+    Serial.printf("[ota] ArduinoOTA ready  (%s.local:3232)\n", WIFI_HOSTNAME);
 
     uint32_t t_lv0 = millis();
     lv_init();
@@ -84,11 +94,14 @@ void setup() {
     Serial.println("LVGL ready.");
     Serial.printf("[perf] LVGL init + driver setup       %lu ms\n", millis() - t_lv0);
 
-    if (screenshot.begin(800, 480)) {
+    if (screenshot.begin(800, 480, &httpServer)) {
         screenshot.setPreServeFn([](uint16_t* buf, uint16_t w, uint16_t h) {
             tft.readRect(0, 0, w, h, buf);
         });
     }
+    httpServer.on("/api/tracking", HTTP_GET, serveTracking);
+    httpServer.begin();
+    Serial.printf("[http] Tracking API ready at http://%s.local:8080/api/tracking\n", WIFI_HOSTNAME);
 
     uint32_t satId = NVSConfig::loadSelectedSat(DEFAULT_SAT_ID);
     BootManager::drawStatus("Computing orbits...   Please wait...", 0x4A9ECC);
@@ -108,22 +121,9 @@ void setup() {
 
 void loop() {
     ArduinoOTA.handle();
-    uint32_t _t0 = millis();
     lv_timer_handler();
-    uint32_t _dt = millis() - _t0;
-    if (_dt > 100) Serial.printf("[loop] blocked %lu ms\n", _dt);
     SatTracker::runPassCompute();      // next-pass search for active sat
-    screenshot.loop();
-    webSocket->loop();
-
-    static uint32_t lastWsBroadcast = 0;
-    if (millis() - lastWsBroadcast >= 1000) {
-        lastWsBroadcast = millis();
-        const auto& s = SatTracker::getState();
-        char buf[64];
-        snprintf(buf, sizeof(buf), "{\"azimuth\":%.1f,\"elevation\":%.1f}", s.azimuth, s.elevation);
-        webSocket->broadcastTXT(buf);
-    }
+    httpServer.handleClient();
 
     delay(5);
 }

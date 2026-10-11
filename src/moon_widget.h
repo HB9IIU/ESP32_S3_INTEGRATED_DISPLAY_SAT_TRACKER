@@ -37,31 +37,80 @@ static float _dist_km  = 0.0f;
 static char  _phase[24] = {};
 
 // ── Binary HTTP GET into pre-allocated PSRAM buffer ──────────────────────────
+class DownloadBuffer : public Stream {
+public:
+    DownloadBuffer(uint8_t* buffer, size_t capacity) : _buffer(buffer), _capacity(capacity) {}
+    size_t write(uint8_t value) override { return write(&value, 1); }
+    size_t write(const uint8_t* data, size_t len) override {
+        size_t count = min(len, _capacity - _used);
+        if (count) memcpy(_buffer + _used, data, count);
+        _used += count;
+        if (count != len) overflow = true;
+        return count;
+    }
+    int available() override { return 0; }
+    int read() override { return -1; }
+    int peek() override { return -1; }
+    void flush() override {}
+    bool overflow = false;
+private:
+    uint8_t* _buffer;
+    size_t _capacity;
+    size_t _used = 0;
+};
+
 static size_t _fetch_binary(const char* url, uint8_t* buf, size_t cap) {
+    // Dial-A-Moon can return an HTTP image URL. Use NASA's HTTPS endpoint
+    // so the secure client connects to port 443, not TLS on HTTP port 80.
+    String requestUrl(url);
+    if (requestUrl.startsWith("http://svs.gsfc.nasa.gov/"))
+        requestUrl = String("https://") + requestUrl.substring(7);
+    if (!requestUrl.startsWith("https://")) {
+        Serial.printf("[moon] Unsupported download URL: %s\n", url);
+        return 0;
+    }
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
-    if (!http.begin(client, url)) return 0;
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setTimeout(25000);
-    http.addHeader("User-Agent", "ESP32-SatTracker/1.0");
-    if (http.GET() != HTTP_CODE_OK) { http.end(); return 0; }
-
-    WiFiClient* stream = http.getStreamPtr();
-    size_t got = 0;
-    const uint32_t deadline = millis() + 30000;
-    while (millis() < deadline && got < cap) {
-        int avail = stream->available();
-        if (avail > 0) {
-            got += stream->readBytes(buf + got, min((size_t)avail, cap - got));
-        } else if (!http.connected()) {
-            break;
-        } else {
-            delay(4);
-        }
+    Serial.printf("[moon] GET %s\n", requestUrl.c_str());
+    if (!http.begin(client, requestUrl)) {
+        Serial.println("[moon] HTTP begin failed");
+        return 0;
     }
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setRedirectLimit(3);
+    http.setConnectTimeout(15000);
+    http.setTimeout(25000);
+    http.setUserAgent("ESP32-SatTracker/1.0");
+    int code = http.GET();
+    Serial.printf("[moon] HTTP %d, content length=%d\n", code, http.getSize());
+    if (code != HTTP_CODE_OK) {
+        if (code < 0) {
+            char error[160] = {};
+            int tlsCode = client.lastError(error, sizeof(error));
+            Serial.printf("[moon] Transport: %s; TLS %d %s\n",
+                          HTTPClient::errorToString(code).c_str(), tlsCode, error);
+        }
+        http.end();
+        return 0;
+    }
+    int expected = http.getSize();
+    if (expected > 0 && (size_t)expected > cap) {
+        Serial.printf("[moon] Response exceeds buffer (%u bytes)\n", (unsigned)cap);
+        http.end();
+        return 0;
+    }
+    // HTTPClient removes chunk framing and stops at the declared body length.
+    // A bounded destination avoids accepting a truncated JPEG as a success.
+    DownloadBuffer destination(buf, cap);
+    int received = http.writeToStream(&destination);
     http.end();
-    return got;
+    if (received <= 0 || destination.overflow || (expected >= 0 && received != expected)) {
+        Serial.printf("[moon] Incomplete download: result=%d expected=%d overflow=%d\n",
+                      received, expected, destination.overflow);
+        return 0;
+    }
+    return (size_t)received;
 }
 
 // ── FreeRTOS fetch task (Core 0) ─────────────────────────────────────────────

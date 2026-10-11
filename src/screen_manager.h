@@ -14,7 +14,6 @@
 #include "screen_iss.h"
 #include "screen_selector.h"
 #include "screen_setup.h"
-#include "screen_websocket.h"
 #include "screen_moon.h"
 
 LV_FONT_DECLARE(JetBrainsMono_Regular_20);

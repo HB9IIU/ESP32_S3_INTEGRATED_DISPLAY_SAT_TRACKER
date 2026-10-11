@@ -26,7 +26,7 @@ struct Result {
     int  satellitesMissing;
     int  satellitesExpected;
     int  satellitesAvailable;
-    bool skipped;   // true = data was fresh, no download attempted
+    bool skipped;   // true = no download attempted (fresh data or retry cooldown)
 };
 
 using StatusCb = void(*)(const char*, uint32_t);
@@ -355,16 +355,19 @@ inline Result checkAndRefresh(StatusCb statusCb = nullptr) {
     for (int g = 0; g < TLE_GROUP_COUNT; g++) {
         time_t checked = getLastGroupCheck(g);
         float ageH = checked > 0 ? (float)(now - checked) / 3600.0f : 9999.0f;
-        if (ageH < (float)TLE_MAX_AGE_H) {
+        if (ageH >= 0 && ageH < (float)TLE_MAX_AGE_H) {
             Serial.printf("[tle] Group %s checked %.1f h ago - skipping\n",
                           TLE_GROUPS[g], ageH);
             continue;
         }
         time_t attempted = getLastGroupAttempt(g);
         float attemptAgeH = attempted > 0 ? (float)(now - attempted) / 3600.0f : 9999.0f;
-        if (attemptAgeH < (float)TLE_RETRY_AGE_H) {
-            Serial.printf("[tle] Group %s failed/attempted %.1f h ago - retry later\n",
-                          TLE_GROUPS[g], attemptAgeH);
+        if (attemptAgeH >= 0 && attemptAgeH < (float)TLE_RETRY_AGE_H) {
+            unsigned remainingMin = (unsigned)((TLE_RETRY_AGE_H * 3600 -
+                                                (now - attempted) + 59) / 60);
+            Serial.printf("[tle] Group %s: retry cooldown, %u min remaining%s\n",
+                          TLE_GROUPS[g], remainingMin,
+                          missing ? " (TLE cache incomplete; no request sent)" : "");
             continue;
         }
         anyDue = true;
