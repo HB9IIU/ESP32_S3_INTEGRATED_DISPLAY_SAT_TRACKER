@@ -197,7 +197,7 @@ static bool fetchGeoLocation() {
 
 // ── UTC offset — called EVERY boot via Open-Meteo ────────────────────────────
 
-static int32_t fetchUtcOffset(float lat, float lon) {
+static bool fetchUtcOffset(float lat, float lon, int32_t& offset) {
     Serial.println("[tz] ════════════════════════════════");
     Serial.printf("[tz] Fetching UTC offset for lat=%.4f lon=%.4f\n", lat, lon);
     drawStatus("Fetching timezone offset ...", 0x00D4FF);
@@ -210,22 +210,28 @@ static int32_t fetchUtcOffset(float lat, float lon) {
 
     String body = HttpUtils::get(url, true);
     if (body.isEmpty()) {
-        Serial.println("[tz] ERROR: empty response — defaulting to UTC");
-        drawStatus("Timezone fetch failed - using UTC", 0xFF4444);
+        Serial.println("[tz] ERROR: empty response");
+        drawStatus("Timezone fetch failed", 0xFF4444);
         delay(1500);
-        return 0;
+        return false;
     }
 
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, body);
     if (err) {
         Serial.printf("[tz] ERROR: JSON parse failed — %s\n", err.c_str());
-        drawStatus("Timezone parse error - using UTC", 0xFF4444);
+        drawStatus("Timezone parse error", 0xFF4444);
         delay(1500);
-        return 0;
+        return false;
     }
 
-    int32_t     offset = doc["utc_offset_seconds"] | 0;
+    if (!doc["utc_offset_seconds"].is<int32_t>()) {
+        Serial.println("[tz] ERROR: missing or invalid UTC offset");
+        drawStatus("Invalid timezone response", 0xFF4444);
+        delay(1500);
+        return false;
+    }
+    offset = doc["utc_offset_seconds"].as<int32_t>();
     const char* tzName = doc["timezone"]             | "UTC";
     const char* tzAbbr = doc["timezone_abbreviation"] | "UTC";
 
@@ -239,7 +245,7 @@ static int32_t fetchUtcOffset(float lat, float lon) {
     delay(TZ_STATUS_MS);
 
     Serial.println("[tz] ════════════════════════════════");
-    return offset;
+    return true;
 }
 
 // ── NTP sync ──────────────────────────────────────────────────────────────────
@@ -432,12 +438,17 @@ inline void run() {
     int32_t offset = 0;
     if (loc.valid) {
         NVSConfig::UtcOffsetCache cache = NVSConfig::loadUtcOffsetCache();
-        if (cache.valid) {
-            offset = cache.offsetSec;
-            Serial.printf("[tz] Using cached UTC offset %+d s\n", offset);
-        } else {
-            offset = fetchUtcOffset(loc.lat, loc.lon);
+        if (fetchUtcOffset(loc.lat, loc.lon, offset)) {
             NVSConfig::saveUtcOffsetCache(offset, time(nullptr));
+        } else if (cache.valid) {
+            offset = cache.offsetSec;
+            Serial.printf("[tz] Fetch failed - using cached UTC offset %+d s\n", offset);
+            drawStatus("Timezone fetch failed - using cached offset", 0xFFAA00);
+            delay(1500);
+        } else {
+            Serial.println("[tz] Fetch failed and no cached offset - using UTC");
+            drawStatus("Timezone fetch failed - using UTC", 0xFF4444);
+            delay(1500);
         }
     } else {
         Serial.println("[boot] → No location — using UTC offset 0");

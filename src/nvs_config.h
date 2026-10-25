@@ -107,7 +107,7 @@ inline void clearLocation() {
     p.end();
 }
 
-// ── Cached UTC offset (to avoid extra API call every boot) ──────────────────
+// ── Cached UTC offset (fallback if the boot-time API request fails) ──────────
 
 struct UtcOffsetCache {
     int32_t offsetSec;
